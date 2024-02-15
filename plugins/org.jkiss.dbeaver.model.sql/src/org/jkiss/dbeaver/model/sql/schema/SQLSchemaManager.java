@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,13 @@ import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.model.impl.jdbc.exec.JDBCTransaction;
-import org.jkiss.dbeaver.model.impl.preferences.SimplePreferenceStore;
 import org.jkiss.dbeaver.model.impl.sql.BasicSQLDialect;
 import org.jkiss.dbeaver.model.preferences.DBPPreferenceStore;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.sql.SQLDialect;
-import org.jkiss.dbeaver.model.sql.SQLModelPreferences;
 import org.jkiss.dbeaver.model.sql.translate.SQLQueryTranslator;
 import org.jkiss.dbeaver.utils.ContentUtils;
+import org.jkiss.utils.CommonUtils;
 import org.jkiss.utils.IOUtils;
 
 import java.io.IOException;
@@ -53,6 +52,7 @@ public final class SQLSchemaManager {
 
     private final SQLDialect targetDatabaseDialect;
     private final String targetDatabaseName;
+    private final String targetSchemaName;
 
     private final int schemaVersionActual;
     private final int schemaVersionObsolete;
@@ -64,6 +64,7 @@ public final class SQLSchemaManager {
         SQLSchemaVersionManager versionManager,
         SQLDialect targetDatabaseDialect,
         String targetDatabaseName,
+        String targetSchemaName,
         int schemaVersionActual,
         int schemaVersionObsolete
     ) {
@@ -74,6 +75,7 @@ public final class SQLSchemaManager {
         this.versionManager = versionManager;
         this.targetDatabaseDialect = targetDatabaseDialect;
         this.targetDatabaseName = targetDatabaseName;
+        this.targetSchemaName = targetSchemaName;
 
         this.schemaVersionActual = schemaVersionActual;
         this.schemaVersionObsolete = schemaVersionObsolete;
@@ -84,7 +86,7 @@ public final class SQLSchemaManager {
             Connection dbCon = connectionProvider.getDatabaseConnection(monitor);
             try (JDBCTransaction txn = new JDBCTransaction(dbCon)) {
                 try {
-                    int currentSchemaVersion = versionManager.getCurrentSchemaVersion(monitor, dbCon, targetDatabaseName);
+                    int currentSchemaVersion = versionManager.getCurrentSchemaVersion(monitor, dbCon, targetSchemaName);
                     // Do rollback in case some error happened during version check (makes sense for PG)
                     txn.rollback();
                     if (currentSchemaVersion < 0) {
@@ -94,7 +96,7 @@ public final class SQLSchemaManager {
                         versionManager.updateCurrentSchemaVersion(
                             monitor,
                             dbCon,
-                            targetDatabaseName,
+                            targetSchemaName,
                             versionManager.getLatestSchemaVersion()
                         );
                     } else if (schemaVersionObsolete > 0 && currentSchemaVersion < schemaVersionObsolete) {
@@ -105,7 +107,7 @@ public final class SQLSchemaManager {
                         versionManager.updateCurrentSchemaVersion(
                             monitor,
                             dbCon,
-                            targetDatabaseName,
+                            targetSchemaName,
                             versionManager.getLatestSchemaVersion()
                         );
                     } else if (schemaVersionActual > currentSchemaVersion) {
@@ -140,7 +142,7 @@ public final class SQLSchemaManager {
             try {
                 executeScript(monitor, connection, ddlStream, true);
                 // Update schema version
-                versionManager.updateCurrentSchemaVersion(monitor, connection, targetDatabaseName, updateToVer);
+                versionManager.updateCurrentSchemaVersion(monitor, connection, targetSchemaName, updateToVer);
                 txn.commit();
             } catch (Exception e) {
                 log.warn("Error updating " + schemaId + " schema version from " + curVer + " to " + updateToVer, e);
@@ -166,17 +168,9 @@ public final class SQLSchemaManager {
 
     private void executeScript(DBRProgressMonitor monitor, Connection connection, Reader ddlStream, boolean logQueries) throws SQLException, IOException, DBException {
         // Read DDL script
-        String ddlText = IOUtils.readToString(ddlStream);
-
+        String ddlText = CommonUtils.normalizeTableNames(IOUtils.readToString(ddlStream), targetSchemaName);
         // Translate script to target dialect
-        DBPPreferenceStore prefStore = new SimplePreferenceStore() {
-            @Override
-            public void save() throws IOException {
-
-            }
-        };
-        prefStore.setValue(SQLModelPreferences.SQL_FORMAT_FORMATTER, "default");
-
+        DBPPreferenceStore prefStore = SQLQueryTranslator.getDefaultPreferenceStore();
         BasicSQLDialect sourceDialect = new BasicSQLDialect() {
         };
         ddlText = SQLQueryTranslator.translateScript(sourceDialect, targetDatabaseDialect, prefStore, ddlText);
@@ -193,14 +187,15 @@ public final class SQLSchemaManager {
             }
             try (Statement dbStat = connection.createStatement()) {
                 try {
+                    log.debug("Execute migration query: " + line);
                     dbStat.execute(line);
                 } catch (SQLException e) {
                     //TODO: find a better way to avoid migration errors
                     // 11 migration version sometimes crashes in h2
                     log.error("Error during sql migration", e);
-                    log.info("Trying to apply the migration again");
+                    log.debug("Trying to apply the migration again");
                     dbStat.execute(line);
-                    log.error("The second attempt was successful");
+                    log.debug("The second schema migration attempt was successful");
                 }
             }
         }

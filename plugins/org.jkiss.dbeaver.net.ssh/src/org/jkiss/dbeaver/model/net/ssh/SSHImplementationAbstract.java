@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,14 @@ import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.model.connection.DBPConnectionConfiguration;
 import org.jkiss.dbeaver.model.net.DBWHandlerConfiguration;
+import org.jkiss.dbeaver.model.net.DBWUtils;
 import org.jkiss.dbeaver.model.net.ssh.config.SSHAuthConfiguration;
 import org.jkiss.dbeaver.model.net.ssh.config.SSHHostConfiguration;
 import org.jkiss.dbeaver.model.net.ssh.config.SSHPortForwardConfiguration;
 import org.jkiss.dbeaver.model.net.ssh.registry.SSHImplementationDescriptor;
 import org.jkiss.dbeaver.model.net.ssh.registry.SSHImplementationRegistry;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
+import org.jkiss.dbeaver.registry.DataSourceUtils;
 import org.jkiss.dbeaver.registry.RegistryConstants;
 import org.jkiss.utils.CommonUtils;
 
@@ -96,7 +98,7 @@ public abstract class SSHImplementationAbstract implements SSHImplementation {
 
         // jump hosts, if supported and present
         if (isSupportsJumpServer()) {
-            final String prefix = getJumpServerSettingsPrefix(0);
+            final String prefix = DataSourceUtils.getJumpServerSettingsPrefix(0);
             if (configuration.getBooleanProperty(prefix + RegistryConstants.ATTR_ENABLED)) {
                 hostConfigurations.add(0, loadConfiguration(configuration, prefix));
             }
@@ -138,18 +140,7 @@ public abstract class SSHImplementationAbstract implements SSHImplementation {
         savedConnectionInfo = connectionInfo;
 
         connectionInfo = new DBPConnectionConfiguration(connectionInfo);
-        // Replace database host/port and URL
-        if (CommonUtils.isEmpty(sshLocalHost)) {
-            connectionInfo.setHostName(SSHConstants.LOCALHOST_NAME);
-        } else {
-            connectionInfo.setHostName(sshLocalHost);
-        }
-        connectionInfo.setHostPort(Integer.toString(sshLocalPort));
-        if (configuration.getDriver() != null) {
-            // Driver can be null in case of orphan tunnel config (e.g. in network profile)
-            String newURL = configuration.getDriver().getConnectionURL(connectionInfo);
-            connectionInfo.setUrl(newURL);
-        }
+        DBWUtils.updateConfigWithTunnelInfo(configuration, connectionInfo, sshLocalHost, sshLocalPort);
         return connectionInfo;
     }
 
@@ -215,11 +206,6 @@ public abstract class SSHImplementationAbstract implements SSHImplementation {
         }
 
         return new SSHHostConfiguration(username, hostname, port, authentication);
-    }
-
-    @NotNull
-    public static String getJumpServerSettingsPrefix(int index) {
-        return SSHConstants.PROP_JUMP_SERVER + index + ".";
     }
 
     protected boolean isSupportsJumpServer() {

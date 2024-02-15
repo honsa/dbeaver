@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,13 +26,16 @@ import java.util.Map;
 public abstract class SMSubject implements DBPNamedObject {
 
     protected final String subjectId;
+    private final boolean secretStorage;
     private final Map<String, String> metaParameters = new LinkedHashMap<>();
 
     public SMSubject(
         @NotNull String subjectId,
-        @Nullable Map<String, String> metaParameters
+        @Nullable Map<String, String> metaParameters,
+        boolean secretStorage
     ) {
         this.subjectId = subjectId;
+        this.secretStorage = secretStorage;
         if (metaParameters != null) {
             this.metaParameters.putAll(metaParameters);
         }
@@ -57,5 +60,8 @@ public abstract class SMSubject implements DBPNamedObject {
         metaParameters.putAll(parameters);
     }
 
+    public boolean isSecretStorage() {
+        return secretStorage;
+    }
 }
 

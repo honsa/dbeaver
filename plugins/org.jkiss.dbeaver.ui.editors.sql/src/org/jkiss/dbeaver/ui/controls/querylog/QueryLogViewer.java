@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ public class QueryLogViewer extends Viewer implements QMMetaListener, DBPPrefere
 
         @Override
         String getText(QMEvent event, boolean briefInfo) {
-            return timeFormat.format(event.getObject().getOpenTime());
+            return timeFormat.format(QMUtils.getObjectEventTime(event.getObject(), event.getAction()));
         }
 
         String getToolTipText(QMEvent event) {
@@ -1034,9 +1034,12 @@ public class QueryLogViewer extends Viewer implements QMMetaListener, DBPPrefere
 
     private DBPDataSourceContainer getDataSourceContainer(QMMStatementExecuteInfo stmtExec) {
         QMMConnectionInfo session = stmtExec.getStatement().getConnection();
-        String projectId = session.getProjectInfo() == null ? null : session.getProjectInfo().getId();
+        String projectName = session.getProjectInfo() == null ? null : session.getProjectInfo().getName();
+        if (CommonUtils.isEmpty(projectName)) {
+            projectName = session.getProjectInfo() == null ? null : session.getProjectInfo().getId();
+        }
         String containerId = session.getContainerId();
-        return DBUtils.findDataSource(projectId, containerId);
+        return DBUtils.findDataSource(projectName, containerId);
     }
 
     private class EventViewDialog extends BaseSQLDialog {
@@ -1211,6 +1214,7 @@ public class QueryLogViewer extends Viewer implements QMMetaListener, DBPPrefere
             if (eventBrowser != null) {
                 QMEventCriteria criteria = QMUtils.createDefaultCriteria(DBWorkbench.getPlatform().getPreferenceStore());
                 criteria.setSearchString(CommonUtils.isEmptyTrimmed(searchString) ? null : searchString.trim());
+                criteria.setFetchingSize(entriesPerPage);
 
                 monitor.beginTask("Load query history", 1); //$NON-NLS-1$
                 if (!CommonUtils.isEmpty(searchString)) {
@@ -1218,7 +1222,11 @@ public class QueryLogViewer extends Viewer implements QMMetaListener, DBPPrefere
                 } else {
                     monitor.subTask("Load all queries"); //$NON-NLS-1$
                 }
-                var qmSessionId = QMUtils.getQmSessionId(DBWorkbench.getPlatform().getWorkspace().getWorkspaceSession());
+
+                String qmSessionId = null;
+                if (DBWorkbench.getPlatform().getApplication() instanceof QMSessionProvider provider) {
+                    qmSessionId = provider.getQmSessionId();
+                }
                 var cursorFilter = new QMCursorFilter(
                     qmSessionId,
                     criteria,

@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,11 +140,7 @@ public class GISGeometryValueHandler extends JDBCAbstractValueHandler {
                 }
             }
         } else if (object instanceof String) {
-            try {
-                geometry = new DBGeometry(new WKTReader().read((String) object));
-            } catch (Exception e) {
-                throw new DBCException("Error parsing geometry value from string", e);
-            }
+            return WKGUtils.parseWKT((String) object);
         } else {
             throw new DBCException("Unsupported geometry value: " + object);
         }

@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.model.DBPDataKind;
 import org.jkiss.dbeaver.model.DBPDataSource;
+import org.jkiss.dbeaver.model.DBPIdentifierCase;
 import org.jkiss.dbeaver.model.DBPObject;
 import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.data.*;
@@ -1147,5 +1148,37 @@ public final class SQLUtils {
             return scriptDelimiters[0];
         }
         return SQLConstants.DEFAULT_STATEMENT_DELIMITER;
+    }
+
+    /**
+     * Determines if a unicode code point represents a letter from LATIN-1.
+     *
+     * @param codePoint unicode code point
+     * @return {@code true} if the code point represents a letter from LATIN-1
+     */
+    public static boolean isLatinLetter(int codePoint) {
+        return Character.isLetter(codePoint) && Character.UnicodeBlock.of(codePoint) == Character.UnicodeBlock.BASIC_LATIN;
+    }
+
+    /**
+     * Returns identifier in canonical form depends on dialect parameters. It's useful when we need to compare two identifiers.
+     */
+    public static String identifierToCanonicalForm(
+        @NotNull SQLDialect dialect,
+        @NotNull String rawIdentifierString,
+        boolean forceUnquotted,
+        boolean prepared
+    ) {
+        String actualIdentifierString;
+        String unquottedIdentifier;
+        if (prepared) {
+            unquottedIdentifier = rawIdentifierString;
+        } else {
+            boolean isQuoted = dialect.isQuotedIdentifier(rawIdentifierString);
+            DBPIdentifierCase identifierCase = isQuoted ? dialect.storesQuotedCase() : dialect.storesUnquotedCase();
+            unquottedIdentifier = identifierCase.transform(dialect.getUnquotedIdentifier(rawIdentifierString, true));
+        }
+        actualIdentifierString = forceUnquotted ? unquottedIdentifier : dialect.getQuotedIdentifier(unquottedIdentifier, true, false);
+        return actualIdentifierString;
     }
 }

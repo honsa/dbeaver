@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ import org.eclipse.swt.events.MenuDetectEvent;
 import org.eclipse.swt.events.MenuDetectListener;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.graphics.GC;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridLayout;
@@ -37,6 +39,8 @@ import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.model.data.DBDAttributeBinding;
 import org.jkiss.dbeaver.model.data.DBDDisplayFormat;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
+import org.jkiss.dbeaver.ui.DBeaverIcons;
+import org.jkiss.dbeaver.ui.UIIcon;
 import org.jkiss.dbeaver.ui.UIUtils;
 import org.jkiss.dbeaver.ui.controls.lightgrid.*;
 import org.jkiss.dbeaver.ui.controls.resultset.*;
@@ -75,6 +79,7 @@ public class Spreadsheet extends LightGrid implements Listener {
     @Nullable
     private final IGridController gridController;
 
+    private boolean accessibilityEnabled;
     private Clipboard clipboard;
 
     public Spreadsheet(
@@ -370,7 +375,12 @@ public class Spreadsheet extends LightGrid implements Listener {
 
     @Override
     public void refreshData(boolean refreshColumns, boolean keepState, boolean fitValue) {
+        // Disable accessibility support.
+        // It will automatically turn on once we detect ACC events
+        accessibilityEnabled = false;
+        // Cancel all editors
         cancelInlineEditor();
+
         super.refreshData(refreshColumns, keepState, fitValue);
         super.redraw();
     }
@@ -378,6 +388,14 @@ public class Spreadsheet extends LightGrid implements Listener {
     @Override
     protected void toggleCellValue(IGridColumn column, IGridRow row) {
         presentation.toggleCellValue(column, row);
+    }
+
+    @Override
+    protected void paintTopLeftCellCustom(GC gc, int y) {
+        if (presentation.getController().isRecordMode() && getColumnCount() > 1) {
+            Image searchIcon = DBeaverIcons.getImage(UIIcon.SEARCH);
+            gc.drawImage(searchIcon, 3, y + 3);
+        }
     }
 
     private void hookContextMenu() {
@@ -522,4 +540,13 @@ public class Spreadsheet extends LightGrid implements Listener {
     private void hookAccessibility() {
         SpreadsheetAccessibleAdapter.install(this);
     }
+
+    boolean isAccessibilityEnabled() {
+        return accessibilityEnabled;
+    }
+
+    void setAccessibilityEnabled(boolean enabled) {
+        this.accessibilityEnabled = enabled;
+    }
+
 }

@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,11 +30,11 @@ public class SMTeam extends SMSubject {
     private Set<String> permissions = new LinkedHashSet<>();
 
     public SMTeam(String teamId) {
-        this(teamId, null, null);
+        this(teamId, null, null, true);
     }
 
-    public SMTeam(String teamId, String name, String description) {
-        super(teamId, null);
+    public SMTeam(String teamId, String name, String description, boolean secretStorage) {
+        super(teamId, null, secretStorage);
         this.teamName = name;
         this.description = description;
     }

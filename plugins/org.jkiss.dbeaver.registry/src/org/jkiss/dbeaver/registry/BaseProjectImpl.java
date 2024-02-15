@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,16 +34,22 @@ import org.jkiss.dbeaver.model.app.DBPProject;
 import org.jkiss.dbeaver.model.app.DBPWorkspace;
 import org.jkiss.dbeaver.model.auth.SMSessionContext;
 import org.jkiss.dbeaver.model.data.json.JSONUtils;
+import org.jkiss.dbeaver.model.fs.DBFFileSystemManager;
 import org.jkiss.dbeaver.model.impl.app.DefaultValueEncryptor;
+import org.jkiss.dbeaver.model.navigator.DBNModel;
 import org.jkiss.dbeaver.model.runtime.AbstractJob;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.runtime.VoidProgressMonitor;
+import org.jkiss.dbeaver.model.secret.DBSSecretSubject;
 import org.jkiss.dbeaver.model.task.DBTTaskManager;
+import org.jkiss.dbeaver.registry.task.TaskConstants;
 import org.jkiss.dbeaver.registry.task.TaskManagerImpl;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
 import org.jkiss.dbeaver.utils.ContentUtils;
 import org.jkiss.utils.CommonUtils;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -51,10 +57,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 
-public abstract class BaseProjectImpl implements DBPProject {
+public abstract class BaseProjectImpl implements DBPProject, DBSSecretSubject {
 
     private static final Log log = Log.getLog(BaseProjectImpl.class);
 
@@ -82,7 +86,8 @@ public abstract class BaseProjectImpl implements DBPProject {
 
     private volatile ProjectFormat format = ProjectFormat.UNKNOWN;
     private volatile DBPDataSourceRegistry dataSourceRegistry;
-    private volatile TaskManagerImpl taskManager;
+    private volatile DBFFileSystemManager fileSystemManager;
+    protected volatile TaskManagerImpl taskManager;
     private volatile Map<String, Object> properties;
     protected volatile Map<String, Map<String, Object>> resourceProperties;
     private UUID projectID;
@@ -162,7 +167,7 @@ public abstract class BaseProjectImpl implements DBPProject {
     protected Path getMetadataPath() {
         return getAbsolutePath().resolve(METADATA_FOLDER);
     }
-
+    
     @Override
     public boolean isRegistryLoaded() {
         return dataSourceRegistry != null;
@@ -202,7 +207,10 @@ public abstract class BaseProjectImpl implements DBPProject {
         if (taskManager == null) {
             synchronized (metadataSync) {
                 if (taskManager == null) {
-                    taskManager = new TaskManagerImpl(this);
+                    taskManager = new TaskManagerImpl(
+                        this,
+                        getWorkspace().getMetadataFolder().resolve(TaskConstants.TASK_STATS_FOLDER)
+                    );
                 }
             }
         }
@@ -221,6 +229,20 @@ public abstract class BaseProjectImpl implements DBPProject {
     @Override
     public SMSessionContext getSessionContext() {
         return sessionContext;
+    }
+
+    @NotNull
+    @Override
+    public DBFFileSystemManager getFileSystemManager() {
+        if (fileSystemManager == null) {
+            synchronized (this) {
+                if (fileSystemManager == null) {
+                    fileSystemManager = new DBFFileSystemManager(this);
+                }
+            }
+        }
+
+        return fileSystemManager;
     }
 
     ////////////////////////////////////////////////////////
@@ -251,6 +273,10 @@ public abstract class BaseProjectImpl implements DBPProject {
         if (properties != null) {
             return;
         }
+        if (isInMemory() || DBWorkbench.isDistributed()) {
+            properties = new LinkedHashMap<>();
+            return;
+        }
 
         synchronized (metadataSync) {
             Path settingsFile = getMetadataPath().resolve(SETTINGS_STORAGE_FILE);
@@ -269,7 +295,7 @@ public abstract class BaseProjectImpl implements DBPProject {
     }
 
     private void saveProperties() {
-        if (isInMemory()) {
+        if (isInMemory() || DBWorkbench.isDistributed()) {
             return;
         }
 
@@ -470,6 +496,11 @@ public abstract class BaseProjectImpl implements DBPProject {
     public void dispose() {
         if (dataSourceRegistry != null) {
             dataSourceRegistry.dispose();
+            dataSourceRegistry = null;
+        }
+        if (fileSystemManager != null) {
+            fileSystemManager.close();
+            fileSystemManager = null;
         }
     }
 
@@ -626,4 +657,16 @@ public abstract class BaseProjectImpl implements DBPProject {
             return Status.OK_STATUS;
         }
     }
+
+    @Nullable
+    @Override
+    public DBNModel getNavigatorModel() {
+        return null;
+    }
+
+    @Override
+    public String getSecretSubjectId() {
+        return "project/" + getId();
+    }
+
 }

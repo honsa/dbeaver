@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import org.jkiss.dbeaver.model.*;
 import org.jkiss.dbeaver.model.connection.DBPConnectionType;
 import org.jkiss.dbeaver.model.data.DBDDataFilter;
 import org.jkiss.dbeaver.model.data.DBDDataReceiver;
-import org.jkiss.dbeaver.model.data.DBDDataReceiverInteractive;
 import org.jkiss.dbeaver.model.exec.*;
 import org.jkiss.dbeaver.model.impl.AbstractExecutionSource;
 import org.jkiss.dbeaver.model.impl.local.StatResultSet;
@@ -59,8 +58,8 @@ import org.jkiss.dbeaver.model.sql.registry.SQLPragmaHandlerDescriptor;
 import org.jkiss.dbeaver.model.struct.DBSDataContainer;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
 import org.jkiss.dbeaver.runtime.jobs.DataSourceJob;
-import org.jkiss.dbeaver.runtime.sql.SQLResultsConsumer;
 import org.jkiss.dbeaver.runtime.ui.DBPPlatformUI;
+import org.jkiss.dbeaver.tools.transfer.IDataTransferConsumer;
 import org.jkiss.dbeaver.ui.ISmartTransactionManager;
 import org.jkiss.dbeaver.ui.UITask;
 import org.jkiss.dbeaver.ui.UIUtils;
@@ -68,6 +67,8 @@ import org.jkiss.dbeaver.ui.controls.resultset.ResultSetPreferences;
 import org.jkiss.dbeaver.ui.dialogs.ConfirmationDialog;
 import org.jkiss.dbeaver.ui.dialogs.exec.ExecutionQueueErrorJob;
 import org.jkiss.dbeaver.ui.editors.sql.SQLPreferenceConstants;
+import org.jkiss.dbeaver.ui.editors.sql.SQLPreferenceConstants.StatisticsTabOnExecutionBehavior;
+import org.jkiss.dbeaver.ui.editors.sql.SQLResultsConsumer;
 import org.jkiss.dbeaver.ui.editors.sql.internal.SQLEditorActivator;
 import org.jkiss.dbeaver.ui.editors.sql.internal.SQLEditorMessages;
 import org.jkiss.dbeaver.utils.RuntimeUtils;
@@ -236,6 +237,12 @@ public class SQLQueryJob extends DataSourceJob
 
                     fetchResultSetNumber = resultSetNumber;
                     boolean runNext = executeSingleQuery(session, query, true);
+                    if (txnManager != null && txnManager.isSupportsTransactions()
+                        && !oldAutoCommit && commitType != SQLScriptCommitType.AUTOCOMMIT
+                        && query instanceof SQLQuery sqlQuery
+                    ) {
+                        handleTransactionStatements(txnManager, session, sqlQuery);
+                    }
                     if (!runNext) {
                         if (lastError == null) {
                             // Execution cancel
@@ -336,6 +343,18 @@ public class SQLQueryJob extends DataSourceJob
         }
     }
 
+    protected void handleTransactionStatements(
+        @NotNull DBCTransactionManager txnManager,
+        @NotNull DBCSession session,
+        @NotNull SQLQuery query
+    ) throws DBCException {
+        if (query.getType().equals(SQLQueryType.COMMIT)) {
+            txnManager.commit(session);
+        } else if (query.getType().equals(SQLQueryType.ROLLBACK)) {
+            txnManager.rollback(session, null);
+        }
+    }
+
     private boolean executeSingleQuery(@NotNull DBCSession session, @NotNull SQLScriptElement element, final boolean fireEvents)
     {
 
@@ -411,19 +430,13 @@ public class SQLQueryJob extends DataSourceJob
         DBRProgressMonitor monitor = session.getProgressMonitor();
         monitor.beginTask("Get data receiver", 1);
         monitor.subTask("Create results view");
-        DBDDataReceiver dataReceiver = resultsConsumer.getDataReceiver(sqlQuery, resultSetNumber);
-        try {
-            if (dataReceiver instanceof DBDDataReceiverInteractive) {
-                ((DBDDataReceiverInteractive) dataReceiver).setDataReceivePaused(true);
-            }
-            if (!scriptContext.fillQueryParameters((SQLQuery) element, CommonUtils.isBitSet(fetchFlags, DBSDataContainer.FLAG_REFRESH))) {
-                // User canceled
-                return false;
-            }
-        } finally {
-            if (dataReceiver instanceof DBDDataReceiverInteractive) {
-                ((DBDDataReceiverInteractive) dataReceiver).setDataReceivePaused(false);
-            }
+        if (!scriptContext.fillQueryParameters(
+            originalQuery,
+            () -> resultsConsumer.getDataReceiver(originalQuery, resultSetNumber),
+            CommonUtils.isBitSet(fetchFlags, DBSDataContainer.FLAG_REFRESH)
+        )) {
+            // User canceled
+            return false;
         }
         monitor.done();
 
@@ -502,6 +515,12 @@ public class SQLQueryJob extends DataSourceJob
                 } catch (InvocationTargetException e) {
                     throw e.getTargetException();
                 }
+            }
+            DBCTransactionManager txnManager = DBUtils.getTransactionManager(session.getExecutionContext());
+            if (txnManager != null && txnManager.isSupportsTransactions()
+                && !txnManager.isAutoCommit() && commitType != SQLScriptCommitType.AUTOCOMMIT
+            ) {
+                handleTransactionStatements(txnManager, session, sqlQuery);
             }
         }
         catch (Throwable ex) {
@@ -713,27 +732,37 @@ public class SQLQueryJob extends DataSourceJob
             }
             query.setData(STATS_RESULTS); // It will set tab name to "Stats"
             DBDDataReceiver dataReceiver = resultsConsumer.getDataReceiver(query, resultSetNumber);
-            if (dataReceiver != null) {
+            if (dataReceiver != null && !(dataReceiver instanceof IDataTransferConsumer)) {
                 try {
                     fetchExecutionResult(session, dataReceiver, query);
                 } catch (DBCException e) {
                     log.error("Error generating execution result stats", e);
                 }
             }
-        } else {
-            resultsConsumer.releaseDataReceiver(resultSetNumber);
         }
     }
 
     private boolean isShowExecutionResult() {
-        if (resultSetNumber <= 0 || statistics.getRowsUpdated() >= 0) {
-            // If there are no results or we have updated some rows, always display statistics
-            return true;
-        } else {
-            // Otherwise, display statistics if the option is set
-            final DBPPreferenceStore store = getDataSourceContainer().getPreferenceStore();
-            return statistics.getStatementsCount() > 1 && store.getBoolean(SQLPreferenceConstants.SHOW_STATISTICS_FOR_QUERIES_WITH_RESULTS);
+        final DBPPreferenceStore store = getDataSourceContainer().getPreferenceStore();
+        StatisticsTabOnExecutionBehavior statisticsTabOnExecutionBehavior = StatisticsTabOnExecutionBehavior.getByName(
+            store.getString(SQLPreferenceConstants.SHOW_STATISTICS_ON_EXECUTION));
+        switch (statisticsTabOnExecutionBehavior) {
+            case ALWAYS:
+                return true;
+            case NEVER:
+                return resultSetNumber <= 0 || statistics.getRowsFetched() <= 0;
+            case FOR_MULTIPLE_QUERIES:
+                if (resultSetNumber <= 0 || statistics.getRowsUpdated() >= 0) {
+                    // If there are no results or we have updated some rows, always display statistics
+                    return true;
+                } else {
+                    // Otherwise, display statistics if the option is set
+                    return statistics.getStatementsCount() > 1;
+                }
+            default:
+                return false;
         }
+        
     }
 
     private void fetchExecutionResult(@NotNull DBCSession session, @NotNull DBDDataReceiver dataReceiver, @NotNull SQLQuery query) throws DBCException

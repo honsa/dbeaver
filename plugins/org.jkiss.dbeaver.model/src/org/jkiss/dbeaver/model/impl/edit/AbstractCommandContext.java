@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -608,7 +608,7 @@ public abstract class AbstractCommandContext implements DBECommandContext {
         CommandInfo aggregator = null;
         // Create queues from commands
         for (CommandInfo commandInfo : commands) {
-            if (commandInfo.command instanceof DBECommandAggregator) {
+            if (commandInfo.command instanceof DBECommandAggregator && !commandInfo.command.ignoreNestedCommands()) {
                 aggregator = commandInfo;
             }
             DBPObject object = commandInfo.command.getObject();

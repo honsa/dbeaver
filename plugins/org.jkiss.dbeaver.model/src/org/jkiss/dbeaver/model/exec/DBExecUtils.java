@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.DBPErrorAssistant;
 import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.connection.DBPConnectionConfiguration;
+import org.jkiss.dbeaver.model.connection.DBPConnectionType;
 import org.jkiss.dbeaver.model.data.*;
 import org.jkiss.dbeaver.model.edit.DBECommand;
 import org.jkiss.dbeaver.model.edit.DBECommandContext;
@@ -81,6 +82,12 @@ public class DBExecUtils {
     private static final ThreadLocal<DBPDataSourceContainer> ACTIVE_CONTEXT = new ThreadLocal<>();
     private static final List<DBPDataSourceContainer> ACTIVE_CONTEXTS = new ArrayList<>();
     public static final boolean BROWSE_LAZY_ASSOCIATIONS = false;
+    private static final ThreadLocal<RecoveryState> recoveryStack = new ThreadLocal<>();
+
+    private static class RecoveryState {
+        int recoveryDepth;
+        boolean recoveryFailed;
+    }
 
     public static DBPDataSourceContainer getCurrentThreadContext() {
         return ACTIVE_CONTEXT.get();
@@ -162,77 +169,94 @@ public class DBExecUtils {
      *
      */
     public static <T> boolean tryExecuteRecover(@NotNull T param, @NotNull DBPDataSource dataSource, @NotNull DBRRunnableParametrized<T> runnable) throws DBException {
-        int tryCount = 1;
-        boolean recoverEnabled = dataSource.getContainer().getPreferenceStore().getBoolean(ModelPreferences.EXECUTE_RECOVER_ENABLED);
-        if (recoverEnabled) {
-            tryCount += dataSource.getContainer().getPreferenceStore().getInt(ModelPreferences.EXECUTE_RECOVER_RETRY_COUNT);
+        RecoveryState recoveryState = DBExecUtils.recoveryStack.get();
+        if (recoveryState == null) {
+            recoveryState = new RecoveryState();
+            DBExecUtils.recoveryStack.set(recoveryState);
         }
-        Throwable lastError = null;
-        for (int i = 0; i < tryCount; i++) {
-            try {
-                runnable.run(param);
-                lastError = null;
-                break;
-            } catch (InvocationTargetException e) {
-                lastError = e.getTargetException();
-                if (!recoverEnabled) {
-                    // Can't recover
-                    break;
-                }
-                DBPErrorAssistant.ErrorType errorType = discoverErrorType(dataSource, lastError);
-                if (errorType != DBPErrorAssistant.ErrorType.TRANSACTION_ABORTED && errorType != DBPErrorAssistant.ErrorType.CONNECTION_LOST) {
-                    // Some other error
-                    break;
-                }
-                DBRProgressMonitor monitor;
-                if (param instanceof DBRProgressMonitor) {
-                    monitor = (DBRProgressMonitor) param;
-                } else if (param instanceof DBCSession) {
-                    monitor = ((DBCSession) param).getProgressMonitor();
-                } else {
-                    monitor = new VoidProgressMonitor();
-                }
-                if (!monitor.isCanceled()) {
 
-                    if (errorType == DBPErrorAssistant.ErrorType.TRANSACTION_ABORTED) {
-                        // Transaction aborted
-                        DBCExecutionContext executionContext = null;
-                        if (lastError instanceof DBCException) {
-                            executionContext = ((DBCException) lastError).getExecutionContext();
-                        }
-                        if (executionContext != null) {
-                            log.debug("Invalidate context [" + executionContext.getDataSource().getContainer().getName() + "/" + executionContext.getContextName() + "] transactions");
-                        } else {
-                            log.debug("Invalidate datasource [" + dataSource.getContainer().getName() + "] transactions");
-                        }
-                        InvalidateJob.invalidateTransaction(monitor, dataSource, executionContext);
+        try {
+            recoveryState.recoveryDepth++;
+
+            int tryCount = 1;
+            boolean recoverEnabled = !recoveryState.recoveryFailed &&
+                dataSource.getContainer().getPreferenceStore().getBoolean(ModelPreferences.EXECUTE_RECOVER_ENABLED);
+            if (recoverEnabled) {
+                tryCount += dataSource.getContainer().getPreferenceStore().getInt(ModelPreferences.EXECUTE_RECOVER_RETRY_COUNT);
+            }
+            Throwable lastError = null;
+            for (int i = 0; i < tryCount; i++) {
+                try {
+                    runnable.run(param);
+                    lastError = null;
+                    break;
+                } catch (InvocationTargetException e) {
+                    lastError = e.getTargetException();
+                    if (!recoverEnabled || recoveryState.recoveryFailed) {
+                        // Can't recover
+                        break;
+                    }
+                    DBPErrorAssistant.ErrorType errorType = discoverErrorType(dataSource, lastError);
+                    if (errorType != DBPErrorAssistant.ErrorType.TRANSACTION_ABORTED && errorType != DBPErrorAssistant.ErrorType.CONNECTION_LOST) {
+                        // Some other error
+                        break;
+                    }
+                    DBRProgressMonitor monitor;
+                    if (param instanceof DBRProgressMonitor) {
+                        monitor = (DBRProgressMonitor) param;
+                    } else if (param instanceof DBCSession) {
+                        monitor = ((DBCSession) param).getProgressMonitor();
                     } else {
-                        // Do not recover if connection was canceled
-                        log.debug("Invalidate datasource '" + dataSource.getContainer().getName() + "' connections...");
-                        InvalidateJob.invalidateDataSource(
-                            monitor,
-                            dataSource,
-                            false,
-                            true,
-                            () -> DBWorkbench.getPlatformUI().openConnectionEditor(dataSource.getContainer()));
-                        if (i < tryCount - 1) {
-                            log.error("Operation failed. Retry count remains = " + (tryCount - i - 1), lastError);
+                        monitor = new VoidProgressMonitor();
+                    }
+                    if (!monitor.isCanceled()) {
+
+                        if (errorType == DBPErrorAssistant.ErrorType.TRANSACTION_ABORTED) {
+                            // Transaction aborted
+                            DBCExecutionContext executionContext = null;
+                            if (lastError instanceof DBCException) {
+                                executionContext = ((DBCException) lastError).getExecutionContext();
+                            }
+                            if (executionContext != null) {
+                                log.debug("Invalidate context [" + executionContext.getDataSource().getContainer().getName() + "/" + executionContext.getContextName() + "] transactions");
+                            } else {
+                                log.debug("Invalidate datasource [" + dataSource.getContainer().getName() + "] transactions");
+                            }
+                            InvalidateJob.invalidateTransaction(monitor, dataSource, executionContext);
+                        } else {
+                            // Do not recover if connection was canceled
+                            log.debug("Invalidate datasource '" + dataSource.getContainer().getName() + "' connections...");
+                            InvalidateJob.invalidateDataSource(
+                                monitor,
+                                dataSource,
+                                false,
+                                true,
+                                () -> DBWorkbench.getPlatformUI().openConnectionEditor(dataSource.getContainer()));
+                            if (i < tryCount - 1) {
+                                log.error("Operation failed. Retry count remains = " + (tryCount - i - 1), lastError);
+                            }
                         }
                     }
+                } catch (InterruptedException e) {
+                    log.error("Operation interrupted");
+                    return false;
                 }
-            } catch (InterruptedException e) {
-                log.error("Operation interrupted");
-                return false;
+            }
+            if (lastError != null) {
+                recoveryState.recoveryFailed = true;
+                if (lastError instanceof DBException) {
+                    throw (DBException) lastError;
+                } else {
+                    throw new DBException(lastError, dataSource);
+                }
+            }
+            return true;
+        } finally {
+            recoveryState.recoveryDepth--;
+            if (recoveryState.recoveryDepth == 0) {
+                recoveryStack.set(null);
             }
         }
-        if (lastError != null) {
-            if (lastError instanceof DBException) {
-                throw (DBException) lastError;
-            } else {
-                throw new DBException(lastError, dataSource);
-            }
-        }
-        return true;
     }
 
     public static void setStatementFetchSize(DBCStatement dbStat, long firstRow, long maxRows, int fetchSize) {
@@ -427,8 +451,21 @@ public class DBExecUtils {
     }
 
     public static void recoverSmartCommit(DBCExecutionContext executionContext) {
-        DBPPreferenceStore preferenceStore = executionContext.getDataSource().getContainer().getPreferenceStore();
-        if (preferenceStore.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT) && preferenceStore.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT_RECOVER)) {
+        DBPDataSourceContainer container = executionContext.getDataSource().getContainer();
+        DBPPreferenceStore preferenceStore = container.getPreferenceStore();
+        boolean recoverSmartCommit;
+        if (preferenceStore.contains(ModelPreferences.TRANSACTIONS_SMART_COMMIT)
+            && preferenceStore.contains(ModelPreferences.TRANSACTIONS_SMART_COMMIT_RECOVER)
+        ) {
+            // First check specific datasource settings
+            recoverSmartCommit = preferenceStore.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT)
+                && preferenceStore.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT_RECOVER);
+        } else {
+            // Or use settings from the connection type
+            DBPConnectionType connectionType = container.getConnectionConfiguration().getConnectionType();
+            recoverSmartCommit = connectionType.isSmartCommit() && connectionType.isSmartCommitRecover();
+        }
+        if (recoverSmartCommit) {
             DBCTransactionManager transactionManager = DBUtils.getTransactionManager(executionContext);
             if (transactionManager != null) {
                 new AbstractJob("Recover smart commit mode") {
@@ -492,10 +529,10 @@ public class DBExecUtils {
                     } catch (Exception e) {
                         // Indexes are not supported or not available
                         // Just skip them
-                        log.debug(e);
+                        log.debug("Error reading table indexes: " + e.getMessage());
                     }
                 }
-                {
+                try {
                     // Check constraints
                     Collection<? extends DBSEntityConstraint> constraints = table.getConstraints(monitor);
                     if (constraints != null) {
@@ -508,6 +545,8 @@ public class DBExecUtils {
                             }*/
                         }
                     }
+                } catch (Exception e) {
+                    log.debug("Error reading table constraints: " + e.getMessage());
                 }
 
             }
@@ -789,13 +828,16 @@ public class DBExecUtils {
                     }
 
                     if (tableColumn != null) {
-                        boolean updateColumnHandler = updateColumnMeta && rows != null
-                            && (sqlQuery == null || !DBDAttributeBindingMeta.haveEqualsTypes(tableColumn, attrMeta));
+                        boolean updateColumnHandler = updateColumnMeta && rows != null &&
+                            (sqlQuery == null || !DBDAttributeBindingMeta.haveEqualsTypes(tableColumn, attrMeta));
 
-                        if ((!updateColumnHandler && bindingMeta.getDataKind() != tableColumn.getDataKind())
-                            || (resultSet != null
-                            && !isSameDataTypes(tableColumn, resultSet.getMeta().getAttributes().get(attrMeta.getOrdinalPosition())))) {
-                            // Different data kind. Probably it is an alias which conflicts with column name
+                        DBCAttributeMetaData metaAttr = resultSet != null ? resultSet.getMeta().getAttributes().get(attrMeta.getOrdinalPosition()) : null;
+
+                        if ((!updateColumnHandler && bindingMeta.getDataKind() != tableColumn.getDataKind()) ||
+                            (resultSet != null && CommonUtils.isEmpty(metaAttr.getEntityName()) && !isSameDataTypes(tableColumn, metaAttr))
+                        ) {
+                            // Different data kind and meta attribute doesn't have table reference.
+                            // Probably it is an alias which conflicts with column name
                             // Do not update entity attribute.
                             // It is a silly workaround for PG-like databases
                         } else if (bindingMeta.setEntityAttribute(tableColumn, updateColumnHandler) && rows != null) {

@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,12 +141,29 @@ public class QMMCollectorImpl extends DefaultExecutionHandler implements QMMColl
         if (eventPool.isEmpty()) {
             return Collections.emptyList();
         }
+        // qm session id might be null if database migration is in progress for single user product
+        if (DBWorkbench.getPlatform().getApplication() instanceof QMSessionProvider qmSessionProvider) {
+            for (QMMetaEvent event : eventPool) {
+                if (event.getSessionId() != null) {
+                    continue;
+                }
+                var workspace = DBWorkbench.getPlatform().getWorkspace();
+                if (workspace == null) {
+                    continue;
+                }
+                var sessionId = qmSessionProvider.getQmSessionId();
+                if (sessionId == null) {
+                    return Collections.emptyList();
+                }
+                event.setSessionId(sessionId);
+            }
+        }
         List<QMMetaEvent> events = eventPool;
         eventPool = new ArrayList<>();
         return events;
     }
 
-    public QMMConnectionInfo getConnectionInfo(DBCExecutionContext context) {
+    public synchronized QMMConnectionInfo getConnectionInfo(DBCExecutionContext context) {
         QMMConnectionInfo connectionInfo = connectionMap.get(context.getContextId());
         if (connectionInfo == null) {
             log.debug("Can't find connectionInfo meta information: " + context.getContextId() + " (" + context.getContextName() + ")");

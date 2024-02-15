@@ -4,6 +4,7 @@
 <plugin>
 
     <extension-point id="org.jkiss.dbeaver.sql.covert" name="%extension-point.org.jkiss.dbeaver.sql.covertname" schema="schema/org.jkiss.dbeaver.sql.convert.exsd"/>
+    <extension-point id="org.jkiss.dbeaver.sql.executors" name="%org.jkiss.dbeaver.sql.executors.name" schema="schema/org.jkiss.dbeaver.sql.executors.exsd"/>
     <extension-point id="org.jkiss.dbeaver.sqlPresentation" name="%extension-point.org.jkiss.dbeaver.sqlPresentation.name" schema="schema/org.jkiss.dbeaver.sqlPresentation.exsd"/>
     <extension-point id="org.jkiss.dbeaver.sql.plan.view" name="%extension-point.org.jkiss.dbeaver.sqlPlanView.name" schema="schema/org.jkiss.dbeaver.sqlPlanView.exsd"/>
     <extension-point id="org.jkiss.dbeaver.sql.editorAddIns" name="%extension-point.org.jkiss.dbeaver.sql.editorAddIns.name" schema="schema/org.jkiss.dbeaver.sql.editorAddIns.exsd"/>
@@ -166,7 +167,7 @@
                 class="org.jkiss.dbeaver.ui.editors.sql.SQLEditorPropertyTester"
                 id="org.jkiss.dbeaver.ui.editors.sql.SQLEditorPropertyTester"
                 namespace="org.jkiss.dbeaver.ui.editors.sql"
-                properties="active,canExecute,canExplain,canNavigate,canValidate,canExport,hasSelection,hasActiveQuery,isActiveQueryRunning,foldingEnabled,foldingSupported"
+                properties="active,canExecute,canExecuteNative,canExplain,canNavigate,canValidate,canExport,hasSelection,hasActiveQuery,isActiveQueryRunning,foldingEnabled,foldingSupported"
                 type="org.jkiss.dbeaver.ui.editors.sql.SQLEditor"/>
         <propertyTester
                 class="org.jkiss.dbeaver.ui.editors.sql.generator.SQLGeneratorPropertyTester"
@@ -225,7 +226,10 @@
         <command id="org.jkiss.dbeaver.ui.editors.sql.run.scriptNew" name="%command.org.jkiss.dbeaver.ui.editors.sql.run.scriptNew.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.run.scriptNew.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.run.scriptFromPosition" name="%command.org.jkiss.dbeaver.ui.editors.sql.run.scriptFromPosition.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.run.scriptFromPosition.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.run.explain" name="%command.org.jkiss.dbeaver.ui.editors.sql.run.explain.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.run.explain.description" categoryId="org.jkiss.dbeaver.core.sql"/>
-        <command id="org.jkiss.dbeaver.ui.editors.sql.load.plan" name="%command.org.jkiss.dbeaver.ui.editors.sql.load.plan.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.load.plan.description" categoryId="org.jkiss.dbeaver.core.sql"/>      
+        <command id="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab" style="toggle" name="%command.org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab.description" categoryId="org.jkiss.dbeaver.core.sql">
+            <state class="org.eclipse.ui.handlers.RegistryToggleState:true" id="org.eclipse.ui.commands.toggleState"/>
+        </command>
+        <command id="org.jkiss.dbeaver.ui.editors.sql.load.plan" name="%command.org.jkiss.dbeaver.ui.editors.sql.load.plan.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.load.plan.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.run.count" name="%command.org.jkiss.dbeaver.ui.editors.sql.run.count.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.run.count.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.run.all.rows" name="%command.org.jkiss.dbeaver.ui.editors.sql.run.all.rows.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.run.all.rows.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.run.expression" name="%command.org.jkiss.dbeaver.ui.editors.sql.run.expression.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.run.expression.description" categoryId="org.jkiss.dbeaver.core.sql"/>
@@ -236,8 +240,16 @@
 
         <command id="org.jkiss.dbeaver.ui.editors.sql.show.output" name="%command.org.jkiss.dbeaver.ui.editors.sql.show.output.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.show.output.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.show.log" name="%command.org.jkiss.dbeaver.ui.editors.sql.show.log.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.show.log.description" categoryId="org.jkiss.dbeaver.core.sql"/>
+        <command id="org.jkiss.dbeaver.ui.editors.sql.show.outline" name="%command.org.jkiss.dbeaver.ui.editors.sql.show.outline.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.show.outline.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.show.variables" name="%command.org.jkiss.dbeaver.ui.editors.sql.show.variables.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.show.variables.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.toggle.extraPanels" name="%command.org.jkiss.dbeaver.ui.editors.sql.toggle.extraPanel.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.toggle.extraPanel.description" categoryId="org.jkiss.dbeaver.core.sql"/>
+        <command id="org.jkiss.dbeaver.ui.editors.sql.switch.presentation" name="Switch presentation to" description="Switch SQL editor presentation" categoryId="org.jkiss.dbeaver.core.sql">
+            <commandParameter
+                    id="presentationId"
+                    name="Presentation"
+                    optional="false"
+                    values="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerSwitchPresentation$ParameterValues"/>
+        </command>
 
         <command id="org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel" name="%command.org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel" name="%command.org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel.description" categoryId="org.jkiss.dbeaver.core.sql"/>
@@ -254,7 +266,7 @@
         <command id="org.jkiss.dbeaver.ui.editors.sql.assist.templates" name="%command.org.jkiss.dbeaver.ui.editors.sql.assist.templates.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.assist.templates.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.sync.connection" name="%command.org.jkiss.dbeaver.ui.editors.sql.sync.connection.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.sync.connection.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.sync.auto" name="%command.org.jkiss.dbeaver.ui.editors.sql.sync.auto.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.sync.auto.description" categoryId="org.jkiss.dbeaver.core.sql"/>
-		<command id="org.jkiss.dbeaver.ui.editors.sql.rename" name="%command.org.jkiss.dbeaver.ui.editors.sql.rename.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.rename.description" categoryId="org.jkiss.dbeaver.core.sql"/>
+        <command id="org.jkiss.dbeaver.ui.editors.sql.rename" name="%command.org.jkiss.dbeaver.ui.editors.sql.rename.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.rename.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.deleteThisScript" name="%command.org.jkiss.dbeaver.ui.editors.sql.deleteThisScript.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.deleteThisScript.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.close.tab" name="%command.org.jkiss.dbeaver.ui.editors.sql.close.tab.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.close.tab.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.toggle.pinned.tab" name="%command.org.jkiss.dbeaver.ui.editors.sql.toggle.pinned.tab.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.toggle.pinned.tab.description" categoryId="org.jkiss.dbeaver.core.sql"/>
@@ -264,6 +276,9 @@
         <command id="org.jkiss.dbeaver.ui.editors.sql.search.web" name="%command.org.jkiss.dbeaver.ui.editors.sql.web.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.web.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.disableSQLSyntaxParser" name="%command.org.jkiss.dbeaver.ui.editors.sql.disableSQLSyntaxParser.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.disableSQLSyntaxParser.description" categoryId="org.jkiss.dbeaver.core.sql"/>
         <command id="org.jkiss.dbeaver.ui.editors.sql.copy.query" name="%command.org.jkiss.dbeaver.ui.editors.sql.copy.query.name" description="%command.org.jkiss.dbeaver.ui.editors.sql.copy.query.description" categoryId="org.jkiss.dbeaver.core.sql"/>
+        <command id="org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled" name="%command.org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled.name" categoryId="org.jkiss.dbeaver.core.sql"/>
+        <command id="org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings" name="%command.org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings.name" categoryId="org.jkiss.dbeaver.core.sql"/>
+        <command id="org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings" name="%command.org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings.name" categoryId="org.jkiss.dbeaver.core.sql"/>
     </extension>
 
     <extension point="org.eclipse.ui.commandImages">
@@ -271,12 +286,13 @@
         <image commandId="org.jkiss.dbeaver.core.sql.editor.recent" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_script_recent.png"/>
         <image commandId="org.jkiss.dbeaver.core.sql.editor.create" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_script_create.png"/>
         <image commandId="org.jkiss.dbeaver.core.sql.editor.console" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_console.png"/>
-        <image commandId="org.jkiss.dbeaver.core.sql.editor.forSelection" icon="platform:/plugin/org.jkiss.dbeaver.model/icons/tree/script.png"/>
+        <image commandId="org.jkiss.dbeaver.core.sql.editor.forSelection" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_console.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.run.statement" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_exec.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.run.statementNew" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_exec_new.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.run.script" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_script_exec.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptNew" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_script_exec_new.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.run.explain" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_plan.png"/>
+        <image commandId="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_multiple_results_per_tab_false.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.cancel.query" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/sql_cancel.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.load.plan" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/file/load.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.sync.connection" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sync_connection.png"/>
@@ -288,6 +304,7 @@
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.show.output" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/page_output.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.show.log" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/page_error.png"/>
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/sql/variable.png"/>
+        <image commandId="org.jkiss.dbeaver.ui.editors.sql.show.outline" icon="platform:/plugin/org.eclipse.ui.views/icons/full/eview16/outline_co.png"/>
 
         <image commandId="org.jkiss.dbeaver.ui.editors.sql.toggleLayout" icon="platform:/plugin/org.jkiss.dbeaver.ui/icons/misc/rotate.png"/>
     </extension>
@@ -426,6 +443,17 @@
                 </with>
             </enabledWhen>
         </handler>
+        <handler commandId="org.jkiss.dbeaver.core.sql.script.run.scriptNative" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExecute">
+            <activeWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor.base"/></activeWhen>
+            <enabledWhen>
+                    <with variable="activeEditor">
+                        <adapt type="org.jkiss.dbeaver.ui.editors.sql.SQLEditor">
+                            <test property="org.jkiss.dbeaver.ui.editors.sql.canExecuteNative" value="script"/>
+                        </adapt>
+                    </with>
+            </enabledWhen>
+        </handler>
+
         <handler commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptNew" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExecute">
             <enabledWhen>
                 <with variable="activeEditor">
@@ -504,6 +532,9 @@
         <handler commandId="org.jkiss.dbeaver.ui.editors.sql.show.log" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerSwitchPanel">
             <enabledWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor"/></enabledWhen>
         </handler>
+        <handler commandId="org.jkiss.dbeaver.ui.editors.sql.show.outline" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerToggleOutlineView">
+            <enabledWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor"/></enabledWhen>
+        </handler>
         <handler commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerSwitchPanel">
             <enabledWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor"/></enabledWhen>
         </handler>
@@ -518,6 +549,12 @@
             <enabledWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor"/></enabledWhen>
         </handler>
         <handler commandId="org.jkiss.dbeaver.ui.editors.sql.switch.panel" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerSwitchPanel">
+            <enabledWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor"/></enabledWhen>
+        </handler>
+        <handler commandId="org.jkiss.dbeaver.ui.editors.sql.switch.presentation" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerSwitchPresentation">
+            <enabledWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor"/></enabledWhen>
+        </handler>
+        <handler commandId="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExecute">
             <enabledWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor"/></enabledWhen>
         </handler>
         <handler commandId="org.jkiss.dbeaver.ui.editors.sql.run.explain" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExecute">
@@ -580,7 +617,7 @@
                 </with>
             </enabledWhen>
         </handler>
-        <handler commandId="command.org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerEnableDisableFolding">
+        <handler commandId="org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerEnableDisableFolding">
             <enabledWhen>
                 <and>
                     <with variable="activeEditor">
@@ -591,7 +628,7 @@
                 </and>
             </enabledWhen>
         </handler>
-        <handler commandId="command.org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExpandCollapseAllFoldings">
+        <handler commandId="org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExpandCollapseAllFoldings">
             <enabledWhen>
                 <and>
                     <with variable="activeEditor">
@@ -607,7 +644,7 @@
                 </and>
             </enabledWhen>
         </handler>
-        <handler commandId="command.org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExpandCollapseAllFoldings">
+        <handler commandId="org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings" class="org.jkiss.dbeaver.ui.editors.sql.handlers.SQLEditorHandlerExpandCollapseAllFoldings">
             <enabledWhen>
                 <and>
                     <with variable="activeEditor">
@@ -691,13 +728,14 @@
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.statement" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+Enter"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.statementNew" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+\"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.script" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="ALT+X"/>
+        <key commandId="org.jkiss.dbeaver.core.sql.script.run.scriptNative" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="ALT+N"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptNew" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+SHIFT+X"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptFromPosition" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="ALT+P"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.count" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+SHIFT+C"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.all.rows" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+SHIFT+A"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.expression" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+'"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.run.explain" contextId="org.jkiss.dbeaver.ui.editors.sql.script.focused" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+E"/>
-         
+
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.close.tab" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+\"/>
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.pinned.tab" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+P"/>
 
@@ -707,9 +745,9 @@
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.show.output" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+O"/>
         <!-- <key commandId="org.jkiss.dbeaver.ui.editors.sql.show.log" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"/> -->
 
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+6"/>
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+6"/>
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.switch.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="ALT+6"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+T"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+T"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.switch.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+T"/>
         <!--<key commandId="org.jkiss.dbeaver.ui.editors.sql.assist.templates" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+SPACE"/>-->
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.open.file" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+SHIFT+O"/>
 
@@ -727,7 +765,7 @@
         <key commandId="org.jkiss.dbeaver.core.sql.editor.create" contextId="org.jkiss.dbeaver.ui.perspective" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+F3"/>
         <key commandId="org.jkiss.dbeaver.core.sql.editor.create" contextId="org.jkiss.dbeaver.ui.perspective" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+]"/>
 
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.gotoMatchingBracket" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+P"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.gotoMatchingBracket" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+["/>
     </extension>
 
     <extension point="org.eclipse.ui.menus">
@@ -855,6 +893,20 @@
                         </with>
                     </visibleWhen>
                 </command>
+                <command commandId="org.jkiss.dbeaver.core.sql.script.run.scriptNative">
+                    <activeWhen><reference definitionId="org.jkiss.dbeaver.core.ui.sql.editor.base"/></activeWhen>
+                    <visibleWhen>
+                        <with variable="activeEditor">
+                            <and>
+                                <instanceof value="org.jkiss.dbeaver.ui.editors.sql.SQLEditor"/>
+                                <adapt type="org.jkiss.dbeaver.ui.editors.sql.SQLEditor">
+                                    <test property="org.jkiss.dbeaver.ui.editors.sql.canExecuteNative" value="script"/>
+                                </adapt>
+                            </and>
+                        </with>
+                    </visibleWhen>
+                </command>
+
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptFromPosition">
                     <visibleWhen>
                         <with variable="activeEditor">
@@ -900,6 +952,14 @@
 
                 <separator name="query" visible="true"/>
 
+                <dynamic class="org.jkiss.dbeaver.ui.editors.sql.commands.MultipleResultsPerTabMenuContribution" id="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab.mmcontributor">
+                    <visibleWhen>
+                        <with variable="activeEditor">
+                            <instanceof value="org.jkiss.dbeaver.ui.editors.sql.SQLEditor"/>
+                        </with>
+                    </visibleWhen>
+                </dynamic>
+                
                 <separator name="plan" visible="true"/>
 
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.explain">
@@ -940,11 +1000,14 @@
                     <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.output"/>
                     <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.log"/>
                     <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables"/>
+                    <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.outline" style="toggle"/>
                     <separator name="panels_config" visible="true"/>
                     <command commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.extraPanels" style="toggle"/>
                 </menu>
                 <menu label="%menu.org.jkiss.dbeaver.ui.editors.sql.SQLEditor.layout.label">
                     <dynamic id="org.jkiss.dbeaver.ui.editors.sql.SQLEditor.layout.resultSet.orientation" class="org.jkiss.dbeaver.ui.editors.sql.SQLEditor$ResultSetOrientationMenuContributor"/>
+                    <separator name="mode_toggles" visible="true"/>
+                    <command commandId="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab" style="toggle"/>
                     <separator name="layout_toggles" visible="true"/>
                     <command commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel"/>
                     <command commandId="org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel"/>
@@ -981,6 +1044,7 @@
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.statement"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.statementNew"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.script"/>
+                <command commandId="org.jkiss.dbeaver.core.sql.script.run.scriptNative"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptFromPosition"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptNew"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.cancel.query"/>
@@ -1030,6 +1094,8 @@
         <menuContribution allPopups="false" locationURI="popup:org.jkiss.dbeaver.ui.editors.sql.SQLEditor.EditorContext?after=sql.extras">
             <menu id="org.jkiss.dbeaver.ui.editors.sql.SQLEditor.layout" label="%menu.org.jkiss.dbeaver.ui.editors.sql.SQLEditor.layout.label">
                 <dynamic id="org.jkiss.dbeaver.ui.editors.sql.SQLEditor.layout.resultSet.orientation" class="org.jkiss.dbeaver.ui.editors.sql.SQLEditor$ResultSetOrientationMenuContributor"/>
+                <separator name="mode_toggles" visible="true"/>
+                <command commandId="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab" style="toggle"/>
                 <separator name="layout_toggles" visible="true"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel"/>
@@ -1041,6 +1107,7 @@
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.output"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.log"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables"/>
+                <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.outline" style="toggle"/>
                 <separator name="panels_config" visible="true"/>
                 <command commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.extraPanels" style="toggle"/>
             </menu>
@@ -1064,13 +1131,13 @@
 
         <menuContribution allPopups="false" locationURI="popup:#SQLRulerContext?before=additions">
             <separator name="foldings" visible="true"/>
-            <command commandId="command.org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled" label="%command.org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled.name" style="toggle">
+            <command commandId="org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled" label="%command.org.jkiss.dbeaver.ui.editors.sql.FoldingsEnabled.name" style="toggle">
                 <visibleWhen checkEnabled="true"/>
             </command>
-            <command commandId="command.org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings" label="%command.org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings.name" style="push">
+            <command commandId="org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings" label="%command.org.jkiss.dbeaver.ui.editors.sql.ExpandAllFoldings.name" style="push">
                 <visibleWhen checkEnabled="true"/>
             </command>
-            <command commandId="command.org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings" label="%command.org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings.name" style="push">
+            <command commandId="org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings" label="%command.org.jkiss.dbeaver.ui.editors.sql.CollapseAllFoldings.name" style="push">
                 <visibleWhen checkEnabled="true"/>
             </command>
         </menuContribution>
@@ -1101,6 +1168,11 @@
                     <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.top,org.jkiss.dbeaver.ui.editors.sql.cancel.query"/>
                 </visibleWhen>
             </command>
+            <command commandId="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab" style="toggle">
+                <visibleWhen>
+                    <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.top,org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab"/>
+                </visibleWhen>
+            </command>
             <command commandId="org.jkiss.dbeaver.ui.editors.sql.run.explain">
                 <visibleWhen>
                     <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.top,org.jkiss.dbeaver.ui.editors.sql.run.explain"/>
@@ -1125,6 +1197,7 @@
                         <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.bottom,org.jkiss.dbeaver.ui.editors.sql.show.output"/>
                         <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.bottom,org.jkiss.dbeaver.ui.editors.sql.show.log"/>
                         <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.bottom,org.jkiss.dbeaver.ui.editors.sql.show.variables"/>
+                        <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.bottom,org.jkiss.dbeaver.ui.editors.sql.show.outline"/>
                     </or>
                 </visibleWhen>
             </dynamic>
@@ -1141,6 +1214,11 @@
             <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables" style="toggle">
                 <visibleWhen>
                     <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.bottom,org.jkiss.dbeaver.ui.editors.sql.show.variables"/>
+                </visibleWhen>
+            </command>
+            <command commandId="org.jkiss.dbeaver.ui.editors.sql.show.outline" style="toggle">
+                <visibleWhen>
+                    <test property="org.jkiss.dbeaver.ui.toolbar.configuration.visible" args="sqlEditor.side.bottom,org.jkiss.dbeaver.ui.editors.sql.show.outline"/>
                 </visibleWhen>
             </command>
         </menuContribution>
@@ -1173,6 +1251,55 @@
             id="org.jkiss.dbeaver.sql.editor.color.string.foreground"
             value="COLOR_DARK_GREEN">
             <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.string.foreground.description</description>
+        </colorDefinition>
+        <colorDefinition
+            label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.table.foreground.label"
+            categoryId="org.jkiss.dbeaver.ui.presentation.sql"
+            id="org.jkiss.dbeaver.sql.editor.color.table.foreground"
+            value="142,0,198">
+            <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.table.foreground.description</description>
+        </colorDefinition>
+        <colorDefinition
+            label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.table.alias.foreground.label"
+            categoryId="org.jkiss.dbeaver.ui.presentation.sql"
+            id="org.jkiss.dbeaver.sql.editor.color.table.alias.foreground"
+            value="142,0,198">
+            <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.table.alias.foreground.description</description>
+        </colorDefinition>
+        <colorDefinition
+            label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.column.foreground.label"
+            categoryId="org.jkiss.dbeaver.ui.presentation.sql"
+            id="org.jkiss.dbeaver.sql.editor.color.column.foreground"
+            value="0,100,100">
+            <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.column.foreground.description</description>
+        </colorDefinition>
+        <colorDefinition
+            label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.column.derived.foreground.label"
+            categoryId="org.jkiss.dbeaver.ui.presentation.sql"
+            id="org.jkiss.dbeaver.sql.editor.color.column.derived.foreground"
+            value="0,100,100">
+            <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.column.derived.foreground.description</description>
+        </colorDefinition>
+        <colorDefinition
+            label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.schema.foreground.label"
+            categoryId="org.jkiss.dbeaver.ui.presentation.sql"
+            id="org.jkiss.dbeaver.sql.editor.color.schema.foreground"
+            value="149,96,55">
+            <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.schema.foreground.description</description>
+        </colorDefinition>
+        <colorDefinition
+            label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.composite.field.foreground.label"
+            categoryId="org.jkiss.dbeaver.ui.presentation.sql"
+            id="org.jkiss.dbeaver.sql.editor.color.composite.field.foreground"
+            value="100,0,100">
+            <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.composite.field.foreground.description</description>
+        </colorDefinition>
+        <colorDefinition
+            label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.semanticError.foreground.label"
+            categoryId="org.jkiss.dbeaver.ui.presentation.sql"
+            id="org.jkiss.dbeaver.sql.editor.color.semanticError.foreground"
+            value="255,55,55">
+            <description>%colorDefinition.org.jkiss.dbeaver.sql.editor.color.semanticError.foreground.description</description>
         </colorDefinition>
         <colorDefinition
             label="%colorDefinition.org.jkiss.dbeaver.sql.editor.color.number.foreground.label"
@@ -1312,15 +1439,44 @@
         <keyword id="org.jkiss.dbeaver.pref.keyword.sql.sqleditor" label="%keyword.org.jkiss.dbeaver.pref.keyword.sql.sqleditor.label"/>
     </extension>
 
-<!--
-    <extension point="org.eclipse.ui.perspectiveExtensions">
-        <perspectiveExtension targetID="org.jkiss.dbeaver.core.perspective">
-            <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.open"/>
-            <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.create"/>
-            <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.console"/>
-        </perspectiveExtension>
+    <extension point="org.jkiss.dbeaver.ui.dataSourceConfigurator">
+        <dataSourceConfigurator>
+            <dataSourcePage
+                id="sql-editor.main"
+                after="data-editor-main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLEditor"
+                title="%page.org.jkiss.dbeaver.preferences.main.sqleditor.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sqleditor.description"/>
+            <dataSourcePage
+                id="sql-editor.completion"
+                parent="sql-editor.main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLCompletion"
+                title="%page.org.jkiss.dbeaver.preferences.main.sql.completion.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sql.completion.description"/>
+            <dataSourcePage
+                id="sql-editor.format"
+                parent="sql-editor.main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLFormat"
+                title="%page.org.jkiss.dbeaver.preferences.main.sql.format.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sql.format.description"/>
+            <dataSourcePage
+                id="sql-editor.execute"
+                parent="sql-editor.main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLExecute"
+                title="%page.org.jkiss.dbeaver.preferences.main.sqlexecute.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sqlexecute.description"/>
+        </dataSourceConfigurator>
     </extension>
--->
+
+    <!--
+        <extension point="org.eclipse.ui.perspectiveExtensions">
+            <perspectiveExtension targetID="org.jkiss.dbeaver.core.perspective">
+                <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.open"/>
+                <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.create"/>
+                <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.console"/>
+            </perspectiveExtension>
+        </extension>
+    -->
 
     <extension id="databaseScriptProblemMarker" name="%databaseScriptProblem.name" point="org.eclipse.core.resources.markers">
         <super type="org.eclipse.core.resources.problemmarker"/>
@@ -1374,18 +1530,21 @@
     <extension point="org.jkiss.dbeaver.toolBarConfiguration">
         <toolBar key="sqlEditor.side.top" name="%org.jkiss.dbeaver.toolBarConfiguration.sqlEditor.side.top">
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.run.statement" defaultVisibility="true"/>
-            <item commandId="org.jkiss.dbeaver.ui.editors.sql.run.statementNew" defaultVisibility="false"/>
+            <item commandId="org.jkiss.dbeaver.ui.editors.sql.run.statementNew" defaultVisibility="true"/>
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.run.script" defaultVisibility="true"/>
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.run.scriptNew" defaultVisibility="false"/>
+            <item commandId="org.jkiss.dbeaver.ui.editors.sql.multipleResultsPerTab" defaultVisibility="false"/>
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.run.explain" defaultVisibility="true"/>
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.load.plan" defaultVisibility="false"/>
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.export.data" defaultVisibility="false"/>
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.cancel.query" defaultVisibility="false"/>
         </toolBar>
         <toolBar key="sqlEditor.side.bottom" name="%org.jkiss.dbeaver.toolBarConfiguration.sqlEditor.side.bottom">
-            <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.output" defaultVisibility="false"/>
-            <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.log" defaultVisibility="false"/>
-            <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables" defaultVisibility="false"/>
+            <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.output" defaultVisibility="true"/>
+            <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.log" defaultVisibility="true"/>
+            <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables" defaultVisibility="true"/>
+            <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.outline" defaultVisibility="true"/>
         </toolBar>
     </extension>
+
 </plugin>

@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,7 +82,9 @@ public class TaskRegistry implements DBTTaskRegistry
                 }
             }
         }
-
+        if (DBWorkbench.getPlatform().getApplication().isMultiuser()) {
+            return;
+        }
         DBPPlatformDesktop.getInstance().getGlobalEventManager().addEventListener((eventId, properties) -> {
             if (eventId.equals(EVENT_TASK_EXECUTE)) {
                 String projectName = CommonUtils.toString(properties.get(EVENT_PARAM_PROJECT));
@@ -152,10 +154,12 @@ public class TaskRegistry implements DBTTaskRegistry
 
     @Override
     public DBTSchedulerDescriptor getActiveScheduler() {
-        // TODO: support active scheduler configuration
-        return schedulers.isEmpty() ? null : schedulers.get(0);
+        return schedulers.stream()
+            .filter(SchedulerDescriptor::isEnabled)
+            .findFirst().orElse(null);
     }
 
+    @Nullable
     public DBTScheduler getActiveSchedulerInstance() {
         DBTSchedulerDescriptor activeScheduler = getActiveScheduler();
         if (activeScheduler != null) {

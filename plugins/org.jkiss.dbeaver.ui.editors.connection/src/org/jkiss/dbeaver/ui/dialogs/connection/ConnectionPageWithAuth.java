@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,15 +106,17 @@ public abstract class ConnectionPageWithAuth extends ConnectionPageAbstract {
             return;
         }
 
-        DBPAuthModelDescriptor selectedAuthModel = authModelSelector.getSelectedAuthModel();
-        dataSource.getConnectionConfiguration().setAuthModelId(
-            selectedAuthModel == null ? null : selectedAuthModel.getId());
-        authModelSelector.saveSettings(dataSource);
+        if (authModelSelector != null) {
+            DBPAuthModelDescriptor selectedAuthModel = authModelSelector.getSelectedAuthModel();
+            dataSource.getConnectionConfiguration().setAuthModelId(
+                selectedAuthModel == null ? null : selectedAuthModel.getId());
+            authModelSelector.saveSettings(dataSource);
+        }
     }
 
     @Override
     public boolean isComplete() {
-        return !isAuthEnabled() || authModelSelector.isComplete();
+        return !isAuthEnabled() || (authModelSelector != null && authModelSelector.isComplete());
     }
 
     protected boolean isAuthEnabled() {

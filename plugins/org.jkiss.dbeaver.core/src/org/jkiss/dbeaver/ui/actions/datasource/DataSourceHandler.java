@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBeaverPreferences;
 import org.jkiss.dbeaver.Log;
+import org.jkiss.dbeaver.core.CoreFeatures;
 import org.jkiss.dbeaver.model.DBPDataSource;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.DBPDataSourceTask;
@@ -52,12 +53,14 @@ import org.jkiss.dbeaver.runtime.jobs.DisconnectJob;
 import org.jkiss.dbeaver.ui.DBeaverIcons;
 import org.jkiss.dbeaver.ui.UIIcon;
 import org.jkiss.dbeaver.ui.UIUtils;
+import org.jkiss.dbeaver.ui.actions.DataSourceHandlerUtils;
 import org.jkiss.dbeaver.ui.dialogs.ConfirmationDialog;
 import org.jkiss.dbeaver.ui.editors.entity.handlers.SaveChangesHandler;
 import org.jkiss.dbeaver.utils.RuntimeUtils;
 import org.jkiss.utils.ArrayUtils;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.Map;
 
 public class DataSourceHandler {
     private static final Log log = Log.getLog(DataSourceHandler.class);
@@ -74,10 +77,10 @@ public class DataSourceHandler {
     public static void connectToDataSource(
         @Nullable DBRProgressMonitor monitor,
         @NotNull DBPDataSourceContainer dataSourceContainer,
-        @Nullable final DBRProgressListener onFinish) {
-        if (dataSourceContainer instanceof DataSourceDescriptor && !dataSourceContainer.isConnected()) {
-            final DataSourceDescriptor dataSourceDescriptor = (DataSourceDescriptor) dataSourceContainer;
-            Job[] connectJobs = Job.getJobManager().find(dataSourceDescriptor);
+        @Nullable final DBRProgressListener onFinish
+    ) {
+        if (dataSourceContainer instanceof final DataSourceDescriptor dataSource && !dataSourceContainer.isConnected()) {
+            Job[] connectJobs = Job.getJobManager().find(dataSource);
             if (!ArrayUtils.isEmpty(connectJobs)) {
                 // Already connecting/disconnecting - just return
                 if (monitor != null && connectJobs.length == 1) {
@@ -90,7 +93,15 @@ public class DataSourceHandler {
                 return;
             }
 
-            final ConnectJob connectJob = new ConnectJob(dataSourceDescriptor);
+            // Ask for additional credentials if needed
+            if (!DataSourceHandlerUtils.resolveSharedCredentials(dataSource, onFinish)) {
+                return;
+            }
+
+            CoreFeatures.CONNECTION_OPEN.use(Map.of(
+                "driver", dataSourceContainer.getDriver().getPreconfiguredId()
+            ));
+            final ConnectJob connectJob = new ConnectJob(dataSource);
             final JobChangeAdapter jobChangeAdapter = new JobChangeAdapter() {
                 @Override
                 public void done(IJobChangeEvent event) {
@@ -98,10 +109,7 @@ public class DataSourceHandler {
                     if (onFinish != null) {
                         onFinish.onTaskFinished(result);
                     } else if (!result.isOK()) {
-                        UIUtils.asyncExec(() -> DBWorkbench.getPlatformUI().showError(
-                            connectJob.getName(),
-                            null,//NLS.bind(CoreMessages.runtime_jobs_connect_status_error, dataSourceContainer.getName()),
-                            result));
+                        DBWorkbench.getPlatformUI().showError(connectJob.getName(), null, result);
                     }
                 }
             };
@@ -132,12 +140,7 @@ public class DataSourceHandler {
                 // Schedule in UI because connect may be initiated during application startup
                 // and UI is still not initiated. In this case no progress dialog will appear
                 // to be sure run in UI async
-                UIUtils.asyncExec(new Runnable() {
-                    @Override
-                    public void run() {
-                        connectJob.schedule();
-                    }
-                });
+                UIUtils.asyncExec(connectJob::schedule);
             }
         }
     }
@@ -156,12 +159,16 @@ public class DataSourceHandler {
             return;
         }
 
-        if (dataSourceContainer instanceof DataSourceDescriptor && dataSourceContainer.isConnected()) {
-            final DataSourceDescriptor dataSourceDescriptor = (DataSourceDescriptor) dataSourceContainer;
+        if (dataSourceContainer instanceof final DataSourceDescriptor dataSourceDescriptor && dataSourceContainer.isConnected()) {
             if (!ArrayUtils.isEmpty(Job.getJobManager().find(dataSourceDescriptor))) {
                 // Already connecting/disconnecting - just return
                 return;
             }
+
+            CoreFeatures.CONNECTION_CLOSE.use(Map.of(
+                "driver", dataSourceContainer.getDriver().getPreconfiguredId()
+            ));
+
             final DisconnectJob disconnectJob = new DisconnectJob(dataSourceDescriptor);
             disconnectJob.addJobChangeListener(new JobChangeAdapter() {
                 @Override
@@ -169,11 +176,8 @@ public class DataSourceHandler {
                     IStatus result = disconnectJob.getConnectStatus();
                     if (onFinish != null) {
                         onFinish.run();
-                    } else if (!result.isOK()) {
-                        DBWorkbench.getPlatformUI().showError(
-                            disconnectJob.getName(),
-                            null,
-                            result);
+                    } else if (result != null && !result.isOK()) {
+                        DBWorkbench.getPlatformUI().showError(disconnectJob.getName(), null, result);
                     }
                     //DataSourcePropertyTester.firePropertyChange(DataSourcePropertyTester.PROP_CONNECTED);
                 }
@@ -183,24 +187,24 @@ public class DataSourceHandler {
     }
 
     public static void reconnectDataSource(final DBRProgressMonitor monitor, final DBPDataSourceContainer dataSourceContainer) {
-        disconnectDataSource(dataSourceContainer, new Runnable() {
-            @Override
-            public void run() {
-                connectToDataSource(monitor, dataSourceContainer, null);
-            }
-        });
+        disconnectDataSource(dataSourceContainer, () ->
+            connectToDataSource(monitor, dataSourceContainer, null));
     }
 
     public static boolean checkAndCloseActiveTransaction(DBPDataSourceContainer container, boolean isReconnect) {
-        DBPDataSource dataSource = container.getDataSource();
-        if (dataSource == null) {
-            return true;
-        }
-
-        for (DBSInstance instance : dataSource.getAvailableInstances()) {
-            if (!checkAndCloseActiveTransaction(instance.getAllContexts(), isReconnect)) {
-                return false;
+        try {
+            DBPDataSource dataSource = container.getDataSource();
+            if (dataSource == null) {
+                return true;
             }
+
+            for (DBSInstance instance : dataSource.getAvailableInstances()) {
+                if (!checkAndCloseActiveTransaction(instance.getAllContexts(), isReconnect)) {
+                    return false;
+                }
+            }
+        } catch (Throwable e) {
+            log.debug(e);
         }
         return true;
     }

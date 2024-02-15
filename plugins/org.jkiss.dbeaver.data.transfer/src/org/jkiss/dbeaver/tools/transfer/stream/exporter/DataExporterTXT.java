@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  * Copyright (C) 2012 Eugene Fradkin (eugene.fradkin@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -177,7 +177,7 @@ public class DataExporterTXT extends StreamExporterAbstract implements IAppendab
     private boolean delimLeading;
     private boolean delimHeader;
     private boolean delimTrailing;
-    private boolean delimBetween;
+    private String delimBetween;
     private Deque<CellValue[]> batchQueue;
 
     // The followings may be a setting some time
@@ -205,16 +205,25 @@ public class DataExporterTXT extends StreamExporterAbstract implements IAppendab
         this.delimLeading = CommonUtils.getBoolean(properties.get(PROP_DELIM_LEADING), true);
         this.delimHeader = CommonUtils.getBoolean(properties.get(PROP_DELIM_HEADER), true);
         this.delimTrailing = CommonUtils.getBoolean(properties.get(PROP_DELIM_TRAILING), true);
-        this.delimBetween = CommonUtils.getBoolean(properties.get(PROP_DELIM_BETWEEN), true);
+        String prop = CommonUtils.toString(properties.get(PROP_DELIM_BETWEEN));
+        if (Boolean.FALSE.toString().equals(prop)) {
+            // Backward compatibility - use space.
+            delimBetween = " ";
+        } else {
+            delimBetween = prop;
+        }
         this.showHeader = CommonUtils.getBoolean(properties.get(PROP_SHOW_HEADER), true);
         this.batchQueue = new ArrayDeque<>(this.batchSize);
         if (this.maxColumnSize > 0) {
             this.maxColumnSize = Math.max(this.maxColumnSize, this.minColumnSize);
         }
-        
-        this.blobContentMaxLength = Math.min(this.maxColumnSize, Integer.MAX_VALUE) - BLOB_OVERFLOW_MARK.length();
-        if (this.blobContentMaxLength < 0) {
-            this.blobContentMaxLength = this.BLOB_CONTENT_MIN_LENGTH;
+        if (this.maxColumnSize == 0) {
+            this.blobContentMaxLength = Integer.MAX_VALUE - BLOB_OVERFLOW_MARK.length();
+        } else {
+            this.blobContentMaxLength = Math.min(this.maxColumnSize, Integer.MAX_VALUE) - BLOB_OVERFLOW_MARK.length();
+            if (this.blobContentMaxLength < 0) {
+                this.blobContentMaxLength = this.BLOB_CONTENT_MIN_LENGTH;
+            }
         }
     }
 
@@ -228,7 +237,11 @@ public class DataExporterTXT extends StreamExporterAbstract implements IAppendab
             final CellValue[] header = new CellValue[columns.length];
 
             for (int index = 0; index < columns.length; index++) {
-                header[index] = new CellTextValue(getAttributeName(columns[index]));
+                String cell = getAttributeName(columns[index]);
+                if (maxColumnSize > 0) {
+                    cell = CommonUtils.truncateString(cell, maxColumnSize);
+                }
+                header[index] = new CellTextValue(cell);
             }
 
             appendRow(header, session.getProgressMonitor());
@@ -257,7 +270,11 @@ public class DataExporterTXT extends StreamExporterAbstract implements IAppendab
                     values[index] = new CellContentValue(content);
                 }
             } else {
-                values[index] = new CellTextValue(getCellString(columns[index], row[index]));
+                String cell = getCellString(columns[index], row[index]);
+                if (maxColumnSize > 0) {
+                    cell = CommonUtils.truncateString(cell, maxColumnSize);
+                }
+                values[index] = new CellTextValue(cell);
             }
         }
 
@@ -267,7 +284,6 @@ public class DataExporterTXT extends StreamExporterAbstract implements IAppendab
     private String stringifyContent(Reader reader) throws IOException {
         try {
             blobContentBuffer.setLength(0);
-            blobContentBuffer.insert(batchSize, "");
             
             int rest = blobContentMaxLength;
             if (QUOTE_BLOBS) {
@@ -402,7 +418,7 @@ public class DataExporterTXT extends StreamExporterAbstract implements IAppendab
             }
 
             if (index < length - 1) {
-                target.append(delimBetween ? '|' : ' ');
+                target.append(delimBetween);
             }
         }
 

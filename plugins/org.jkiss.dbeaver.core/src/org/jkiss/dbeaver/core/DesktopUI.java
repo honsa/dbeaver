@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import org.jkiss.dbeaver.model.connection.DBPDriver;
 import org.jkiss.dbeaver.model.connection.DBPDriverDependencies;
 import org.jkiss.dbeaver.model.exec.DBExecUtils;
 import org.jkiss.dbeaver.model.navigator.DBNNode;
+import org.jkiss.dbeaver.model.navigator.fs.DBNPathBase;
 import org.jkiss.dbeaver.model.runtime.*;
 import org.jkiss.dbeaver.model.runtime.load.ILoadService;
 import org.jkiss.dbeaver.model.runtime.load.ILoadVisualizer;
@@ -66,6 +67,7 @@ import org.jkiss.dbeaver.ui.dialogs.exec.ExecutionQueueErrorJob;
 import org.jkiss.dbeaver.ui.internal.UIConnectionMessages;
 import org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerObjectOpen;
 import org.jkiss.dbeaver.ui.navigator.dialogs.ObjectBrowserDialog;
+import org.jkiss.dbeaver.ui.navigator.project.FileSystemExplorerView;
 import org.jkiss.dbeaver.ui.notifications.NotificationUtils;
 import org.jkiss.dbeaver.ui.views.process.ProcessPropertyTester;
 import org.jkiss.dbeaver.ui.views.process.ShellProcessView;
@@ -161,10 +163,11 @@ public class DesktopUI implements DBPPlatformUI {
             return;
         }
         if (TrayIconHandler.isSupported()) {
+            UIUtils.syncExec(() -> Display.getCurrent().beep());
             getInstance().trayItem.notify(message, status);
         } else {
             DBeaverNotifications.showNotification(
-                "agentNotify",
+                "agent.notify",
                 "Agent Notification",
                 message,
                 status == IStatus.INFO ? DBPMessageType.INFORMATION :
@@ -269,17 +272,25 @@ public class DesktopUI implements DBPPlatformUI {
     }
 
     @Override
-    public void showNotification(@NotNull String title, String message, boolean error) {
-        showNotification(title, message, error ? DBPMessageType.ERROR : DBPMessageType.INFORMATION);
+    public void showNotification(@NotNull String title, String message, boolean error, @Nullable Runnable feedback) {
+        NotificationUtils.sendNotification(
+            DBeaverNotifications.NT_GENERIC,
+            title,
+            message,
+            error ? DBPMessageType.ERROR : DBPMessageType.INFORMATION,
+            feedback
+        );
     }
 
     @Override
     public void showWarningNotification(@NotNull String title, String message) {
-        showNotification(title, message, DBPMessageType.WARNING);
-    }
-
-    private static void showNotification(@NotNull String title, @NotNull String message, @NotNull DBPMessageType type) {
-        NotificationUtils.sendNotification(title, title, message, type, null);
+        NotificationUtils.sendNotification(
+            DBeaverNotifications.NT_GENERIC,
+            title,
+            message,
+            DBPMessageType.WARNING,
+            null
+        );
     }
 
     @Override
@@ -291,7 +302,25 @@ public class DesktopUI implements DBPPlatformUI {
     public boolean confirmAction(String title, String message, boolean isWarning) {
         return UIUtils.confirmAction(null, title, message, isWarning ? DBIcon.STATUS_WARNING : DBIcon.STATUS_QUESTION);
     }
-    
+
+    @Override
+    public boolean confirmAction(@NotNull String title, @NotNull String message, @NotNull String buttonLabel, boolean isWarning) {
+        final Reply confirm = new Reply(buttonLabel);
+        final Reply[] decision = new Reply[1];
+
+        UIUtils.syncExec(() -> {
+            decision[0] = MessageBoxBuilder.builder(UIUtils.getActiveWorkbenchShell())
+                .setTitle(title)
+                .setMessage(message)
+                .setReplies(confirm, Reply.CANCEL)
+                .setDefaultReply(Reply.CANCEL)
+                .setPrimaryImage(isWarning ? DBIcon.STATUS_WARNING : DBIcon.STATUS_QUESTION)
+                .showMessageBox();
+        });
+
+        return decision[0] == confirm;
+    }
+
     @NotNull
     @Override
     public UserChoiceResponse showUserChoice(
@@ -378,19 +407,40 @@ public class DesktopUI implements DBPPlatformUI {
         return null;
     }
 
+    @Nullable
     @Override
-    public DBPAuthInfo promptUserCredentials(final String prompt, final String userName, final String userPassword, final boolean passwordOnly, boolean showSavePassword) {
-        return promptUserCredentials(prompt,
+    public DBPAuthInfo promptUserCredentials(
+        @Nullable String prompt,
+        @Nullable String description,
+        @Nullable String userName,
+        @Nullable String userPassword,
+        boolean passwordOnly,
+        boolean showSavePassword
+    ) {
+        return promptUserCredentials(
+            prompt,
+            description,
             UIConnectionMessages.dialog_connection_auth_label_username,
             userName,
             UIConnectionMessages.dialog_connection_auth_label_password,
             userPassword,
             passwordOnly,
-            showSavePassword);
+            showSavePassword
+        );
     }
 
+    @Nullable
     @Override
-    public DBPAuthInfo promptUserCredentials(String prompt, String userNameLabel, String userName, String passwordLabel, String userPassword, boolean passwordOnly, boolean showSavePassword) {
+    public DBPAuthInfo promptUserCredentials(
+        @Nullable String prompt,
+        @Nullable String description,
+        @NotNull String userNameLabel,
+        @Nullable String userName,
+        @NotNull String passwordLabel,
+        @Nullable String userPassword,
+        boolean passwordOnly,
+        boolean showSavePassword
+    ) {
         return new UITask<DBPAuthInfo>() {
             @Override
             public DBPAuthInfo runTask() {
@@ -398,6 +448,7 @@ public class DesktopUI implements DBPPlatformUI {
                 final BaseAuthDialog authDialog = new BaseAuthDialog(shell, prompt, passwordOnly, showSavePassword);
                 authDialog.setUserNameLabel(userNameLabel);
                 authDialog.setPasswordLabel(passwordLabel);
+                authDialog.setDescription(description);
                 if (!passwordOnly) {
                     authDialog.setUserName(userName);
                 }
@@ -421,6 +472,22 @@ public class DesktopUI implements DBPPlatformUI {
                 final PasswordChangeDialog passwordChangeDialog = new PasswordChangeDialog(shell, prompt, userName, oldPassword, userEditable, oldPasswordVisible);
                 if (passwordChangeDialog.open() == IDialogConstants.OK_ID) {
                     return passwordChangeDialog.getPasswordInfo();
+                } else {
+                    return null;
+                }
+            }
+        }.execute();
+    }
+
+    @Override
+    public String promptProperty(String prompt, String defValue) {
+        return new UITask<String>() {
+            @Override
+            public String runTask() {
+                final Shell shell = UIUtils.getActiveWorkbenchShell();
+                final EnterNameDialog dialog = new EnterNameDialog(shell, prompt, defValue);
+                if (dialog.open() == IDialogConstants.OK_ID) {
+                    return dialog.getResult();
                 } else {
                     return null;
                 }
@@ -651,6 +718,29 @@ public class DesktopUI implements DBPPlatformUI {
     @Override
     public void showInSystemExplorer(@NotNull String path) {
         UIUtils.asyncExec(() -> ShellUtils.showInSystemExplorer(path));
+    }
+
+    @Override
+    public DBNPathBase openFileSystemSelector(
+        @NotNull String title,
+        boolean folder,
+        int style,
+        boolean binary,
+        String[] filterExt,
+        String defaultValue
+    ) {
+        DBNNode object = ObjectBrowserDialog.selectObject(
+            UIUtils.getActiveWorkbenchShell(),
+            title,
+            FileSystemExplorerView.getFileSystemsNode(),
+            null,
+            null,
+            new Class[] { DBNPathBase.class },
+            null);
+        if (object instanceof DBNPathBase path) {
+            return path;
+        }
+        return null;
     }
 
     @Override

@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import org.jkiss.dbeaver.model.qm.meta.QMMObject;
 public class QMMetaEvent implements QMEvent {
     protected final QMMObject object;
     protected final QMEventAction action;
-    protected final String sessionId;
+    protected String sessionId;
 
     public QMMetaEvent(QMMObject object, QMEventAction action, String sessionId) {
         this.object = object;
@@ -43,6 +43,10 @@ public class QMMetaEvent implements QMEvent {
 
     public String getSessionId() {
         return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
     }
 
     @Override

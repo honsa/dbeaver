@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,20 @@ package org.jkiss.dbeaver.model.qm.meta;
 
 import org.jkiss.dbeaver.model.app.DBPProject;
 
-public class QMMProjectInfo {
+import java.util.UUID;
 
+public class QMMProjectInfo {
+    @Include
     private final String id;
     private final String name;
     private final String path;
     private final boolean isAnonymous;
+    private final UUID uuid;
 
     public QMMProjectInfo(DBPProject project) {
-        this.id = project.getProjectID().toString();
+        this.id = project.getId();
         this.name = project.getName();
+        this.uuid = project.getProjectID();
         this.path = project.getAbsolutePath().toString();
         var projectSession = project
             .getSessionContext()
@@ -38,6 +42,7 @@ public class QMMProjectInfo {
     private QMMProjectInfo(Builder builder) {
         this.id = builder.id;
         this.name = builder.name;
+        this.uuid = UUID.randomUUID();
         this.path = builder.path;
         this.isAnonymous = builder.isAnonymous;
 
@@ -49,6 +54,10 @@ public class QMMProjectInfo {
 
     public String getName() {
         return name;
+    }
+
+    public UUID getUuid() {
+        return uuid;
     }
 
     public String getPath() {

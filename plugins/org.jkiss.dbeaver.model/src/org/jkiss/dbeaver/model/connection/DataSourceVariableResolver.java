@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,17 @@
 package org.jkiss.dbeaver.model.connection;
 
 import org.jkiss.code.Nullable;
+import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
+import org.jkiss.dbeaver.model.DBPDataSourceOrigin;
+import org.jkiss.dbeaver.runtime.DBWorkbench;
 import org.jkiss.dbeaver.utils.RuntimeUtils;
 import org.jkiss.dbeaver.utils.SystemVariablesResolver;
+import org.jkiss.utils.BeanUtils;
 
 public class DataSourceVariableResolver extends SystemVariablesResolver {
+    private static final Log log = Log.getLog(DataSourceVariableResolver.class);
+
     private final DBPDataSourceContainer dataSourceContainer;
     private final DBPConnectionConfiguration configuration;
 
@@ -32,15 +38,20 @@ public class DataSourceVariableResolver extends SystemVariablesResolver {
     }
 
     public boolean isSecure() {
-        return true;
+        return false; // see dbeaver/pro#1861
     }
 
-    protected DBPDataSourceContainer getDataSourceContainer() {
+    public DBPDataSourceContainer getDataSourceContainer() {
         return dataSourceContainer;
     }
 
     protected DBPConnectionConfiguration getConfiguration() {
         return configuration;
+    }
+
+    @Override
+    protected boolean isResolveSystemVariables() {
+        return DBWorkbench.getPlatform().getApplication().isEnvironmentVariablesAccessible();
     }
 
     @Override
@@ -62,8 +73,17 @@ public class DataSourceVariableResolver extends SystemVariablesResolver {
                 case DBPConnectionConfiguration.VARIABLE_CONN_TYPE:
                     return configuration.getConnectionType().getId();
             }
+            // isSecure() is always false here due to dbeaver/pro#1861
             if (DBPConnectionConfiguration.VARIABLE_PASSWORD.equals(name) && isSecure()) {
                 return configuration.getUserPassword();
+            }
+            if (name.startsWith(DBPConnectionConfiguration.VARIABLE_PREFIX_PROPERTIES)) {
+                return configuration.getProperty(
+                    name.substring(DBPConnectionConfiguration.VARIABLE_PREFIX_PROPERTIES.length()));
+            }
+            if (name.startsWith(DBPConnectionConfiguration.VARIABLE_PREFIX_AUTH)) {
+                return configuration.getAuthProperty(
+                    name.substring(DBPConnectionConfiguration.VARIABLE_PREFIX_AUTH.length()));
             }
         }
         if (dataSourceContainer != null) {
@@ -76,6 +96,19 @@ public class DataSourceVariableResolver extends SystemVariablesResolver {
                     return dataSourceContainer.getProject().getName();
                 case DBPConnectionConfiguration.VARIABLE_DATE:
                     return RuntimeUtils.getCurrentDate();
+            }
+
+            if (name.startsWith(DBPConnectionConfiguration.VARIABLE_PREFIX_ORIGIN)) {
+                String originProperty = name.substring(DBPConnectionConfiguration.VARIABLE_PREFIX_ORIGIN.length());
+                DBPDataSourceOrigin origin = dataSourceContainer.getOrigin();
+                try {
+                    Object value = BeanUtils.readObjectProperty(origin, originProperty);
+                    if (value != null) {
+                        return value.toString();
+                    }
+                } catch (Exception e) {
+                    log.debug("Invalid datasource origin property '" + originProperty + "': " + e.getMessage(), e);
+                }
             }
         }
         return super.get(name);

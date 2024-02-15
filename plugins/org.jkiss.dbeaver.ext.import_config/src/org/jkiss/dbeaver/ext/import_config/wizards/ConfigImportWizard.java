@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@ import org.eclipse.ui.IWorkbench;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.ext.import_config.ImportConfigMessages;
+import org.jkiss.dbeaver.model.DatabaseURL;
 import org.jkiss.dbeaver.model.app.DBPDataSourceRegistry;
 import org.jkiss.dbeaver.model.connection.DBPConnectionConfiguration;
 import org.jkiss.dbeaver.model.connection.DBPDriverConfigurationType;
 import org.jkiss.dbeaver.model.connection.DBPDriverLibrary;
 import org.jkiss.dbeaver.model.exec.DBCException;
-import org.jkiss.dbeaver.model.impl.jdbc.JDBCURL;
 import org.jkiss.dbeaver.registry.DataSourceDescriptor;
 import org.jkiss.dbeaver.registry.DataSourceProviderDescriptor;
 import org.jkiss.dbeaver.registry.DataSourceProviderRegistry;
@@ -267,7 +267,7 @@ public abstract class ConfigImportWizard extends Wizard implements IImportWizard
         if (connectionInfo.getDriver() != null) {
             sampleURL = connectionInfo.getDriver().getSampleURL();
         }
-        final JDBCURL.MetaURL metaURL = JDBCURL.parseSampleURL(sampleURL);
+        final DatabaseURL.MetaURL metaURL = DatabaseURL.parseSampleURL(sampleURL);
         List<String> urlComponents = metaURL.getUrlComponents();
         for (int i = 0, urlComponentsSize = urlComponents.size(); i < urlComponentsSize; i++) {
             String component = urlComponents.get(i);

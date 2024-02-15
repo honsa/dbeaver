@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -153,7 +153,10 @@ public class VirtualStructureEditor extends AbstractDatabaseObjectEditor<DBSEnti
         if (activated) {
             DBSEntity dbObject = getDatabaseObject();
             if (dbObject != null) {
-                DBUtils.getObjectRegistry(dbObject).removeDataSourceListener(this);
+                var registry = DBUtils.getObjectRegistry(dbObject);
+                if (registry != null) {
+                    registry.removeDataSourceListener(this);
+                }
             }
         }
         super.dispose();
@@ -179,7 +182,10 @@ public class VirtualStructureEditor extends AbstractDatabaseObjectEditor<DBSEnti
 
         DBSEntity dbObject = getDatabaseObject();
         if (dbObject != null) {
-            DBUtils.getObjectRegistry(dbObject).addDataSourceListener(this);
+            var registry = DBUtils.getObjectRegistry(dbObject);
+            if (registry != null) {
+                registry.addDataSourceListener(this);
+            }
         }
     }
 

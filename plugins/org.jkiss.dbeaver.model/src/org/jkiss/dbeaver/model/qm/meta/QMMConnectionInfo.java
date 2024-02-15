@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,13 +25,18 @@ import org.jkiss.utils.CommonUtils;
  */
 public class QMMConnectionInfo extends QMMObject {
 
+    @Include
     private final QMMProjectInfo projectInfo;
+    @Include
     private final String containerId;
+
     private String containerName;
     private final String driverId;
     private String connectionUserName;
     private String connectionUrl;
+    @Include
     private String instanceId;
+    @Include
     private String contextName;
     private boolean transactional;
 
@@ -81,6 +86,7 @@ public class QMMConnectionInfo extends QMMObject {
     public QMMConnectionInfo(
         long openTime,
         long closeTime,
+        QMMProjectInfo projectInfo,
         String containerId,
         String containerName,
         String driverId,
@@ -90,7 +96,7 @@ public class QMMConnectionInfo extends QMMObject {
         boolean transactional)
     {
         super(QMMetaObjectType.CONNECTION_INFO, openTime, closeTime);
-        this.projectInfo = null;
+        this.projectInfo = projectInfo;
         this.containerId = containerId;
         this.containerName = containerName;
         this.driverId = driverId;
@@ -126,11 +132,6 @@ public class QMMConnectionInfo extends QMMObject {
     @Override
     public String getText() {
         return this.containerName + " - " + contextName;
-    }
-
-    @Override
-    public QMMetaObjectType getObjectType() {
-        return QMMetaObjectType.CONNECTION_INFO;
     }
 
     @Override
@@ -299,9 +300,12 @@ public class QMMConnectionInfo extends QMMObject {
         return contextName;
     }
 
-    public QMMStatementInfo getStatementStack()
-    {
+    public QMMStatementInfo getStatementStack() {
         return statementStack;
+    }
+
+    public QMMStatementExecuteInfo getExecutionStack() {
+        return executionStack;
     }
 
     public QMMTransactionInfo getTransaction()

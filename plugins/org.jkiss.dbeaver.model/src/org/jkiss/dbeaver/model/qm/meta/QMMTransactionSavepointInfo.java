@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,11 +26,11 @@ import java.util.NoSuchElementException;
  */
 public class QMMTransactionSavepointInfo extends QMMObject {
 
-    private final QMMTransactionInfo transaction;
+    private final transient QMMTransactionInfo transaction;
     private final String name;
     private boolean committed;
-    private final QMMTransactionSavepointInfo previous;
-    private QMMStatementExecuteInfo lastExecute;
+    private final transient QMMTransactionSavepointInfo previous;
+    private transient QMMStatementExecuteInfo lastExecute;
 
     private transient DBCSavepoint reference;
 
@@ -138,11 +138,6 @@ public class QMMTransactionSavepointInfo extends QMMObject {
     @Override
     public String getText() {
         return transaction.getText();
-    }
-
-    @Override
-    public QMMetaObjectType getObjectType() {
-        return QMMetaObjectType.TRANSACTION_SAVEPOINT_INFO;
     }
 
     @Override

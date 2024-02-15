@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,6 @@ import org.jkiss.dbeaver.utils.RuntimeUtils;
 import org.jkiss.dbeaver.utils.SystemVariablesResolver;
 import org.jkiss.utils.CommonUtils;
 import org.jkiss.utils.StandardConstants;
-import org.osgi.framework.Bundle;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -83,48 +82,6 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
     private DBACertificateStorage certificateStorage;
     private DBPPlatformLanguage language;
 
-    private static boolean disposed = false;
-
-    public static DesktopPlatform getInstance() {
-        if (instance == null) {
-            synchronized (DesktopPlatform.class) {
-                if (disposed) {
-                    throw new IllegalStateException("DBeaver core already disposed");
-                }
-                if (instance == null) {
-                    // Initialize DBeaver Core
-                    DesktopPlatform.createInstance();
-                }
-            }
-        }
-        return instance;
-    }
-
-    private static DesktopPlatform createInstance() {
-        log.debug("Initializing " + GeneralUtils.getProductTitle());
-        if (Platform.getProduct() != null) {
-            Bundle definingBundle = Platform.getProduct().getDefiningBundle();
-            if (definingBundle != null) {
-                log.debug("Host plugin: " + definingBundle.getSymbolicName() + " " + definingBundle.getVersion());
-            } else {
-                log.debug("No product bundle found");
-            }
-        }
-
-        try {
-            instance = new DesktopPlatform();
-            instance.initialize();
-            return instance;
-        } catch (Throwable e) {
-            log.error("Error initializing desktop platform", e);
-            throw new IllegalStateException("Error initializing desktop platform", e);
-        }
-    }
-
-    public static String getCorePluginID() {
-        return DBeaverActivator.getInstance().getBundle().getSymbolicName();
-    }
-
     public static boolean isStandalone() {
         return BaseApplicationImpl.getInstance().isStandalone();
     }
@@ -147,7 +104,8 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
         return DBeaverActivator.getInstance().getPreferences();
     }
 
-    private DesktopPlatform() {
+    public DesktopPlatform() {
+        instance = this;
     }
 
     protected void initialize() {
@@ -171,6 +129,7 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
             DBeaverActivator.getInstance().getStateLocation().toFile().toPath().resolve("security"));
 
         // Create workspace
+        getApplication().beforeWorkspaceInitialization();
         this.workspace = (DesktopWorkspaceImpl) getApplication().createWorkspace(this, ResourcesPlugin.getWorkspace());
         // Init workspace in UI because it may need some UI interactions to initialize
         this.workspace.initializeProjects();
@@ -213,7 +172,7 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
             this.queryManager.dispose();
             //queryManager = null;
         }
-        DataSourceProviderRegistry.getInstance().dispose();
+        DataSourceProviderRegistry.dispose();
 
         if (isStandalone() && workspace != null && !application.isExclusiveMode()) {
             try {
@@ -225,7 +184,6 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
 
         // Remove temp folder
         if (tempFolder != null) {
-
             if (!ContentUtils.deleteFileRecursive(tempFolder)) {
                 log.warn("Can not delete temp folder '" + tempFolder + "'");
             }
@@ -233,7 +191,6 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
         }
 
         DesktopPlatform.instance = null;
-        DesktopPlatform.disposed = true;
         System.gc();
         log.debug("Platform shutdown completed (" + (System.currentTimeMillis() - startTime) + "ms)");
         // Just in case do System.eis after pause
@@ -366,9 +323,12 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
                 } else {
                     tempFolderPath = System.getProperty(StandardConstants.ENV_TMP_DIR);
                 }
-                tempFolder = Files.createTempDirectory(
-                    Paths.get(tempFolderPath),
-                    TEMP_PROJECT_NAME);
+                Path tmpFolder = Paths.get(tempFolderPath);
+                if (!Files.exists(tmpFolder)) {
+                    log.debug("Create global temp folder '" + tmpFolder + "'");
+                    Files.createDirectories(tmpFolder);
+                }
+                tempFolder = Files.createTempDirectory(tmpFolder, TEMP_PROJECT_NAME);
             } catch (IOException e) {
                 final String sysTempFolder = System.getProperty(StandardConstants.ENV_TMP_DIR);
                 if (!CommonUtils.isEmpty(sysTempFolder)) {
@@ -393,14 +353,15 @@ public class DesktopPlatform extends BasePlatformImpl implements DBPPlatformDesk
                 }
             }
         }
-        if (!Files.exists(tempFolder)) {
+        Path localTemp = name == null ? tempFolder : tempFolder.resolve(name);
+        if (!Files.exists(localTemp)) {
             try {
-                Files.createDirectories(tempFolder);
+                Files.createDirectories(localTemp);
             } catch (IOException e) {
-                log.error("Can't create temp directory " + tempFolder, e);
+                log.error("Can't create temp directory " + localTemp, e);
             }
         }
-        return tempFolder;
+        return localTemp;
     }
 
     @Override

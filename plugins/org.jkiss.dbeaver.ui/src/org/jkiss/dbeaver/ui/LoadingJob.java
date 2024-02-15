@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import org.jkiss.dbeaver.model.runtime.load.AbstractLoadService;
 import org.jkiss.dbeaver.model.runtime.load.ILoadService;
 import org.jkiss.dbeaver.model.runtime.load.ILoadVisualizer;
 import org.jkiss.dbeaver.model.runtime.load.ILoadVisualizerExt;
+import org.jkiss.dbeaver.runtime.DBInterruptedException;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
 import org.jkiss.dbeaver.ui.internal.UIActivator;
 
@@ -131,7 +132,7 @@ public class LoadingJob<RESULT>  extends AbstractJob {
                 log.debug(e);
             }
 
-            if (innerError != null) {
+            if (innerError != null && !(innerError instanceof DBInterruptedException)) {
                 DBWorkbench.getPlatformUI().showError(
                         getName(),
                     null,

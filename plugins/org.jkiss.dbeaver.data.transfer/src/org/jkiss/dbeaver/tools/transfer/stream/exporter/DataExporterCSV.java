@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,10 +39,11 @@ import org.jkiss.dbeaver.utils.ContentUtils;
 import org.jkiss.dbeaver.utils.GeneralUtils;
 import org.jkiss.utils.CommonUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Date;
 import java.util.Map;
 
@@ -253,8 +254,8 @@ public class DataExporterCSV extends StreamExporterAbstract implements IAppendab
 
     @Override
     public void importData(@NotNull IStreamDataExporterSite site) {
-        final File file = site.getOutputFile();
-        if (file == null || !file.exists()) {
+        final Path file = site.getOutputFile();
+        if (file == null || !Files.exists(file)) {
             return;
         }
         // FIXME: Sources may be different and thus may have a different set of attributes

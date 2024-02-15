@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,10 +43,12 @@ import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.DBeaverPreferences;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.ModelPreferences;
+import org.jkiss.dbeaver.core.CoreFeatures;
 import org.jkiss.dbeaver.erd.ui.ERDUIConstants;
 import org.jkiss.dbeaver.model.DBIcon;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.app.DBPApplication;
+import org.jkiss.dbeaver.model.app.DBPProject;
 import org.jkiss.dbeaver.model.impl.preferences.BundlePreferenceStore;
 import org.jkiss.dbeaver.model.task.DBTTaskManager;
 import org.jkiss.dbeaver.registry.DataSourceRegistry;
@@ -66,11 +68,7 @@ import org.jkiss.dbeaver.ui.preferences.PrefPageDatabaseEditors;
 import org.jkiss.dbeaver.ui.preferences.PrefPageDatabaseUserInterface;
 import org.jkiss.dbeaver.utils.RuntimeUtils;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * This workbench advisor creates the window advisor, and specifies
@@ -97,7 +95,10 @@ public class ApplicationWorkbenchAdvisor extends IDEWorkbenchAdvisor {
         WORKBENCH_PREF_PAGE_ID + "/org.eclipse.ui.preferencePages.General.LinkHandlers",
         WORKBENCH_PREF_PAGE_ID + "/org.eclipse.ui.preferencePages.Startup",
         WORKBENCH_PREF_PAGE_ID + "/org.eclipse.ui.trace.tracingPage",
-        "org.eclipse.ui.internal.console.ansi.preferences.AnsiConsolePreferencePage"
+        WORKBENCH_PREF_PAGE_ID + "/org.eclipse.epp.mpc.projectnatures",
+        "org.eclipse.ui.internal.console.ansi.preferences.AnsiConsolePreferencePage",
+        WORKBENCH_PREF_PAGE_ID + "/org.eclipse.ui.browser.preferencePage",
+        "org.eclipse.jsch.ui.SSHPreferences"
 
         // Team preferences - not needed in CE
         //"org.eclipse.team.ui.TeamPreferences",
@@ -223,6 +224,12 @@ public class ApplicationWorkbenchAdvisor extends IDEWorkbenchAdvisor {
     @Override
     public void preStartup() {
         super.preStartup();
+
+        {
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("startTime", DBWorkbench.getPlatform().getApplication().getApplicationStartTime());
+            CoreFeatures.APP_OPEN.use(params);
+        }
     }
 
     @Override
@@ -315,6 +322,7 @@ public class ApplicationWorkbenchAdvisor extends IDEWorkbenchAdvisor {
             // User rejected to exit
             return false;
         } else {
+            CoreFeatures.APP_CLOSE.use();
             return super.preShutdown();
         }
     }
@@ -325,6 +333,10 @@ public class ApplicationWorkbenchAdvisor extends IDEWorkbenchAdvisor {
     }
 
     private boolean saveAndCleanup() {
+        if (getWorkbenchConfigurer().emergencyClosing()) {
+            return true;
+        }
+
         try {
             IWorkbenchWindow window = getWorkbenchConfigurer().getWorkbench().getActiveWorkbenchWindow();
             if (window != null) {
@@ -388,7 +400,12 @@ public class ApplicationWorkbenchAdvisor extends IDEWorkbenchAdvisor {
     }
 
     private boolean cancelRunningTasks() {
-        final DBTTaskManager manager = DBWorkbench.getPlatform().getWorkspace().getActiveProject().getTaskManager();
+        DBPProject activeProject = DBWorkbench.getPlatform().getWorkspace().getActiveProject();
+        if (activeProject == null) {
+            // Probably some TE user without permissions and projects
+            return true;
+        }
+        final DBTTaskManager manager = activeProject.getTaskManager();
 
         if (manager.hasRunningTasks()) {
             final boolean cancel = DBWorkbench.getPlatformUI().confirmAction(

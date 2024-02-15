@@ -1,7 +1,7 @@
 /*
  * DBeaver - Universal Database Manager
  * Copyright (C) 2013-2016 Denis Forveille (titou10.titou10@gmail.com)
- * Copyright (C) 2010-2023 DBeaver Corp and others
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
  */
 package org.jkiss.dbeaver.ext.db2.model;
 
-import org.eclipse.core.runtime.IAdaptable;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
@@ -71,7 +70,7 @@ import java.util.*;
  * 
  * @author Denis Forveille
  */
-public class DB2DataSource extends JDBCDataSource implements DBCQueryPlanner, IAdaptable, DBPObjectStatisticsCollector {
+public class DB2DataSource extends JDBCDataSource implements DBCQueryPlanner, DBPAdaptable, DBPObjectStatisticsCollector {
 
     private static final Log log = Log.getLog(DB2DataSource.class);
 
@@ -435,7 +434,7 @@ public class DB2DataSource extends JDBCDataSource implements DBCQueryPlanner, IA
         
         DB2PlanConfig cfg = new DB2PlanConfig();
         DBEObjectConfigurator configurator = GeneralUtils.adapt(cfg, DBEObjectConfigurator.class);
-        if (configurator == null || configurator.configureObject(monitor, this, cfg, Collections.emptyMap()) == null) {
+        if (configurator == null || configurator.configureObject(monitor, null, this, cfg, Collections.emptyMap()) == null) {
             return null;
         }
 
@@ -768,7 +767,7 @@ public class DB2DataSource extends JDBCDataSource implements DBCQueryPlanner, IA
                 try (JDBCResultSet dbResult = dbStat.executeQuery("SELECT\n" +
                     "    TABSCHEMA,\n" +
                     "    SUM(DATA_OBJECT_P_SIZE + INDEX_OBJECT_P_SIZE + LONG_OBJECT_P_SIZE + LOB_OBJECT_P_SIZE + XML_OBJECT_P_SIZE) AS TOTAL_SIZE_IN_KB\n" +
-                    "FROM SYSIBMADM.ADMINTABINFO\n" +
+                    "FROM TABLE(ADMIN_GET_TAB_INFO('',''))\n" +
                     "GROUP BY TABSCHEMA")) {
                     while (dbResult.next()) {
                         String schemaName = JDBCUtils.safeGetStringTrimmed(dbResult, 1);
