@@ -16,24 +16,14 @@
  */
 package org.jkiss.dbeaver.erd.ui.layout.algorithm.direct;
 
+import org.eclipse.draw2d.graph.*;
+import org.eclipse.gef.editparts.AbstractGraphicalEditPart;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.erd.ui.part.EntityPart;
-import org.eclipse.draw2d.graph.DirectedGraph;
-import org.eclipse.draw2d.graph.DirectedGraphLayout;
-import org.eclipse.draw2d.graph.Edge;
-import org.eclipse.draw2d.graph.Node;
-import org.eclipse.gef.editparts.AbstractGraphicalEditPart;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.TreeMap;
 
 /**
  * The class represents node layout logic based on tree structure with max depth
@@ -68,7 +58,11 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
     /**
      * Repeatable columns value
      */
-    private static final int VIRTUAL_COLUMNS = 6;
+    private static final int COLUMN_MAX = 8;
+    /**
+     * Pair of columns for islands representation 
+     */
+    private static final int COLUMN_ISLAND_MAX = 3;
     /**
      * Distance by X require to draw connection
      */
@@ -130,7 +124,8 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
 
     private TreeMap<Integer, List<Node>> removeIslandNodesFromRoots(
         @NotNull List<Node> islands,
-        @NotNull TreeMap<Integer, List<Node>> nodeByLevels) {
+        @NotNull TreeMap<Integer, List<Node>> nodeByLevels
+    ) {
         List<Node> listOfNodes = nodeByLevels.get(0);
         if (listOfNodes != null) {
             listOfNodes.removeAll(islands);
@@ -140,37 +135,38 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
     }
 
     private void drawIsolatedNodes(
-        @NotNull List<Node> islands,
-        @NotNull TreeMap<Integer, List<Node>> nodeByLevels) {
-        // considered to have a islands one - to -one
-        Entry<Integer, List<Node>> lastEntry = nodeByLevels.lastEntry();
+        @NotNull List<Node> islandNodes,
+        @NotNull TreeMap<Integer, List<Node>> mainNodes
+    ) {
+        Entry<Integer, List<Node>> lastEntry = mainNodes.lastEntry();
         int offsetX = OFFSET_FROM_LEFT;
         for (Node n : lastEntry.getValue()) {
             if (offsetX < n.width) {
                 offsetX = n.width;
             }
         }
-        int currentX = 0;
-        if (lastEntry.getValue().isEmpty()) {
-            currentX = OFFSET_FROM_LEFT;
-        } else {
-            Node lastNode = nodeByLevels.lastEntry().getValue().get(0);
-            currentX = lastNode.x + offsetX + OFFSET_FROM_LEFT;
-        }
-
-        int currentY = OFFSET_FROM_TOP;
-        int distanceX = computeDistance(islands);
-        for (Node nodeSource : islands) {
+        int currentX = OFFSET_FROM_LEFT;
+        int currentY = findBottomPosition(mainNodes);
+        int distanceX = computeDistance(islandNodes);
+        int offsetY = 0;
+        for (Node nodeSource : islandNodes) {
             nodeSource.x = currentX;
             nodeSource.y = currentY;
             for (Edge edge : nodeSource.outgoing) {
                 Node nodeTarget = edge.target;
                 nodeTarget.x = currentX + nodeSource.width + distanceX;
                 nodeTarget.y = currentY;
-                if (nodeSource.height > nodeTarget.height) {
-                    currentY += nodeSource.height + DISTANCE_ENTITIES_Y;
+                if (offsetY < nodeSource.height) {
+                    offsetY = nodeSource.height;
+                }
+                if (offsetY < nodeTarget.height) {
+                    offsetY = nodeTarget.height;
+                }
+                if ((islandNodes.indexOf(nodeSource) + 1) % COLUMN_ISLAND_MAX != 0) {
+                    currentX += nodeSource.width + nodeTarget.width + distanceX + DISTANCE_ENTITIES_X;
                 } else {
-                    currentY += nodeTarget.height + DISTANCE_ENTITIES_Y;
+                    currentX = OFFSET_FROM_LEFT;
+                    currentY += offsetY + DISTANCE_ENTITIES_Y / 2;
                 }
             }
         }
@@ -179,7 +175,8 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
     private void drawMissedNodes(
         @NotNull List<Node> islands,
         @NotNull List<Node> missedNodes,
-        @NotNull TreeMap<Integer, List<Node>> nodeByLevels) {
+        @NotNull TreeMap<Integer, List<Node>> nodeByLevels
+    ) {
         Entry<Integer, List<Node>> lastEntry = nodeByLevels.lastEntry();
         int offsetX = OFFSET_FROM_LEFT;
         for (Node n : lastEntry.getValue()) {
@@ -187,18 +184,9 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
                 offsetX = n.width;
             }
         }
-        int currentX = 0;
-        if (lastEntry.getValue().isEmpty()) {
-            currentX = OFFSET_FROM_LEFT;
-        } else {
-            Node lastNode = nodeByLevels.lastEntry().getValue().get(0);
-            currentX = lastNode.x + offsetX + OFFSET_FROM_LEFT;
-        }
-        int currentY = OFFSET_FROM_TOP;
-        for (Node nodeSource : islands) {
-            currentY += nodeSource.height + DISTANCE_ENTITIES_Y;
-        }
-        int virtColumns = 0;
+        int currentX = OFFSET_FROM_LEFT;
+        int currentY = findBottomPosition(nodeByLevels) + getBottomPositionIslands(islands);
+        int curColumnIndex = 0;
         offsetX = currentX;
         int offsetY = currentY;
         int height = DISTANCE_ENTITIES_Y;
@@ -208,15 +196,40 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
             }
             node.x = offsetX;
             node.y = offsetY;
-            virtColumns++;
-            if (virtColumns % VIRTUAL_COLUMNS == 0) {
+            curColumnIndex++;
+            if (curColumnIndex % COLUMN_MAX == 0) {
                 // next row
                 offsetY += height + DISTANCE_ENTITIES_Y;
                 offsetX = currentX;
+                height = 0;
             } else {
                 offsetX += node.width + DISTANCE_ENTITIES_X / 2;
             }
         }
+    }
+
+    private int getBottomPositionIslands(List<Node> islands) {
+        int positionY = 0;
+        int offsetY = 0;
+        for (Node nodeSource : islands) {
+            for (Edge edge : nodeSource.outgoing) {
+                Node nodeTarget = edge.target;
+                if (offsetY < nodeSource.height) {
+                    offsetY = nodeSource.height;
+                }
+                if (offsetY < nodeTarget.height) {
+                    offsetY = nodeTarget.height;
+                }
+            }
+            if ((islands.indexOf(nodeSource) + 1) % COLUMN_ISLAND_MAX == 0) {
+                positionY += offsetY + DISTANCE_ENTITIES_Y / 2;
+                offsetY = 0;
+            }
+        }
+        if (offsetY != 0) {
+            offsetY += DISTANCE_ENTITIES_Y;
+        }
+        return positionY + offsetY;
     }
 
     private void drawGraphNodes(@NotNull TreeMap<Integer, List<Node>> nodeByEdges) {
@@ -316,7 +329,8 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
     @NotNull
     private List<Node> findMissedGraphNodes(
         @NotNull DirectedGraph graph,
-        @NotNull TreeMap<Integer, List<Node>> nodeByEdges) {
+        @NotNull TreeMap<Integer, List<Node>> nodeByEdges
+    ) {
         List<Node> missedNodes = new ArrayList<>();
         for (Node node : graph.nodes) {
             boolean isContains = false;
@@ -341,13 +355,14 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
                 missedNodes.add(node);
             }
         }
-        return missedNodes;
+        return missedNodes; 
     }
 
     @NotNull
     private TreeMap<Integer, List<Node>> verifyNodesOnGraph(
         @NotNull DirectedGraph graph,
-        @NotNull TreeMap<Integer, List<Node>> nodeByLevels) {
+        @NotNull TreeMap<Integer, List<Node>> nodeByLevels
+    ) {
         if (nodeByLevels.isEmpty() && !graph.nodes.isEmpty()) {
             // still no roots but elements exists in graph add all elements as possible
             // roots.
@@ -356,7 +371,10 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
         return nodeByLevels;
     }
 
-    private void createGraphLayers(@NotNull TreeMap<Integer, List<Node>> nodeByEdges, int idx) {
+    private void createGraphLayers(
+        @NotNull TreeMap<Integer, List<Node>> nodeByEdges, 
+        int idx
+    ) {
         Map<Node, Integer> duplicationNode2index = new HashMap<>();
         List<Node> nodesLine = nodeByEdges.get(idx);
         for (Node inNode : nodesLine) {
@@ -401,7 +419,10 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
     }
 
     @Nullable
-    private Integer getNodeIndex(@NotNull TreeMap<Integer, List<Node>> nodeByEdges, @NotNull Node src) {
+    private Integer getNodeIndex(
+        @NotNull TreeMap<Integer, List<Node>> nodeByEdges,
+        @NotNull Node src
+    ) {
         for (Entry<Integer, List<Node>> nodeOnLevel : nodeByEdges.entrySet()) {
             if (nodeOnLevel.getValue().contains(src)) {
                 return nodeOnLevel.getKey();
@@ -432,4 +453,25 @@ public class OrthoDirectedGraphLayout extends DirectedGraphLayout {
         return diagram;
     }
 
+    /**
+     * Compute last position value by X of main connected graph 
+     */
+    @SuppressWarnings("unused")
+    private int findRightPosition(@NotNull TreeMap<Integer, List<Node>> nodeByEdges) {
+        int positionByX;
+        if (nodeByEdges.lastEntry().getValue().isEmpty()) {
+            positionByX = OFFSET_FROM_LEFT;
+        } else {
+            Node lastNode = nodeByEdges.lastEntry().getValue().get(0);
+            positionByX = lastNode.x + OFFSET_FROM_LEFT;
+        }
+        return positionByX;
+    }
+
+    /**
+     * Compute last position value by Y of main connected graph
+     */
+    private int findBottomPosition(@NotNull TreeMap<Integer, List<Node>> nodeByEdges) {
+        return OFFSET_FROM_TOP + DISTANCE_ENTITIES_Y + Collections.max(computeHeight(nodeByEdges).values());
+    }
 }

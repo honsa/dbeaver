@@ -517,6 +517,23 @@ public class UIUtils {
         return reply[0] == Reply.YES;
     }
 
+    /**
+     * Confirm action with custom labels
+     *
+     */
+    public static boolean confirmAction(@Nullable Shell shell, String title, String message, @NotNull DBPImage image, String[] buttons) {
+        final Reply[] reply = { null };
+        syncExec(() -> reply[0] = MessageBoxBuilder.builder(shell != null ? shell : getActiveWorkbenchShell())
+            .setTitle(title)
+            .setMessage(message)
+            .setLabels(buttons)
+            .setDefaultReply(Reply.NO)
+            .setPrimaryImage(image)
+            .setDefaultFocus(buttons.length - 1)
+            .showMessageBox());
+        return reply[0] == Reply.OK;
+    }
+
     public static int getFontHeight(Control control) {
         return getFontHeight(control.getFont());
     }
@@ -984,11 +1001,12 @@ public class UIUtils {
      * Creates {@link ScrolledComposite} from the {@link Composite}
      *
      * @param parent composite parent
+     * @param style composite style
      * @return ScrolledComposite
      */
     @NotNull
-    public static ScrolledComposite createScrolledComposite(@NotNull Composite parent) {
-        ScrolledComposite scrolledComposite = new ScrolledComposite(parent, SWT.V_SCROLL);
+    public static ScrolledComposite createScrolledComposite(@NotNull Composite parent, int style) {
+        ScrolledComposite scrolledComposite = new ScrolledComposite(parent, style);
         scrolledComposite.setLayout(new GridLayout(1, false));
         scrolledComposite.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         return scrolledComposite;
@@ -1007,10 +1025,9 @@ public class UIUtils {
         scrolledComposite.addControlListener(new ControlAdapter() {
             @Override
             public void controlResized(ControlEvent e) {
-                scrolledComposite.setMinHeight(content.computeSize(SWT.DEFAULT, SWT.DEFAULT).y);
+                scrolledComposite.setMinSize(content.computeSize(SWT.DEFAULT, SWT.DEFAULT));
             }
         });
-        scrolledComposite.setMinSize(content.computeSize(SWT.DEFAULT, SWT.DEFAULT));
     }
 
     public static Composite createPlaceholder(@NotNull Composite parent, int columns, int spacing) {

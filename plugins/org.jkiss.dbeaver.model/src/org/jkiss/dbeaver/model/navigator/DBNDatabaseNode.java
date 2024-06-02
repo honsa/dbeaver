@@ -472,9 +472,9 @@ public abstract class DBNDatabaseNode extends DBNNode implements DBNLazyNode, DB
                         loadChildren(monitor, item, oldList, toList, source, reflect);
                     }
                 }
-            } else if (child instanceof DBXTreeFolder) {
-                if (hideFolders || ((mergeEntities || supportsOptionalFolders) && ((DBXTreeFolder)child).isOptional())) {
-                    if (child.isVirtual()) {
+            } else if (child instanceof DBXTreeFolder treeFolder) {
+                if (hideFolders || ((mergeEntities || supportsOptionalFolders) && treeFolder.isOptional())) {
+                    if (child.isVirtual() || treeFolder.isAdminFolder()) {
                         continue;
                     }
                     // Fall down
@@ -833,7 +833,7 @@ public abstract class DBNDatabaseNode extends DBNNode implements DBNLazyNode, DB
             if (pathName.length() > 0) {
                 pathName.insert(0, '/');
             }
-            pathName.insert(0, node.getNodeDisplayName().replace("/", DBNModel.SLASH_ESCAPE_TOKEN));
+            pathName.insert(0, DBNUtils.encodeNodePath(node.getNodeDisplayName()));
         }
         return pathName.toString();
     }
