@@ -19,7 +19,7 @@ package org.jkiss.dbeaver.model.sql.semantics.context;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
-import org.jkiss.dbeaver.model.sql.semantics.model.SQLQueryRowsSourceModel;
+import org.jkiss.dbeaver.model.sql.semantics.model.select.SQLQueryRowsSourceModel;
 import org.jkiss.dbeaver.model.struct.DBSEntity;
 
 import java.util.List;
@@ -31,6 +31,11 @@ public class SQLQueryPureResultTupleContext extends SQLQuerySyntaxContext {
 
     public SQLQueryPureResultTupleContext(@NotNull SQLQueryDataContext parent) {
         super(parent);
+    }
+
+    @Override
+    public boolean hasUndresolvedSource() {
+        return false;
     }
 
     @Nullable

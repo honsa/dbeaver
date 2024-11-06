@@ -48,6 +48,8 @@ import org.jkiss.utils.CommonUtils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * MultiPageWizardDialog
@@ -76,6 +78,7 @@ public class MultiPageWizardDialog extends TitleAreaDialog implements IWizardCon
     private final ListenerList<IPageChangedListener> pageChangedListeners = new ListenerList<>();
     private Composite leftBottomPanel;
     private Font boldFont;
+    private Set<IWizardPage> resizedPages = new HashSet<>();
 
     public MultiPageWizardDialog(IWorkbenchWindow window, IWizard wizard) {
         this(window, wizard, null);
@@ -320,13 +323,6 @@ public class MultiPageWizardDialog extends TitleAreaDialog implements IWizardCon
             pageArea.layout();
             if (prevPage.getControl() != null) {
                 prevPage.getControl().setFocus();
-            }
-            if (pageCreated && isAutoLayoutAvailable()) {
-                UIUtils.asyncExec(() -> {
-                    if (wizard.getContainer().getShell() != null) {
-                        UIUtils.resizeShell(wizard.getContainer().getShell());
-                    }
-                });
             }
 
             if (page instanceof ActiveWizardPage<?> awp) {
@@ -694,6 +690,7 @@ public class MultiPageWizardDialog extends TitleAreaDialog implements IWizardCon
                 }
             });
         }
+        updateSize();
     }
 
     @Override
@@ -702,11 +699,12 @@ public class MultiPageWizardDialog extends TitleAreaDialog implements IWizardCon
     }
 
     private void updateSize(IWizardPage page) {
-        if (page == null || page.getControl() == null) {
+        if (page == null || page.getControl() == null || resizedPages.contains(page)) {
             return;
         }
         updateSizeForPage(page);
         pageArea.layout();
+        resizedPages.add(page);
     }
 
     /**
@@ -715,14 +713,24 @@ public class MultiPageWizardDialog extends TitleAreaDialog implements IWizardCon
      * @param page the wizard page
      */
     private void updateSizeForPage(IWizardPage page) {
-        // ensure the page container is large enough
-        Point delta = calculatePageSizeDelta(page);
-        if (delta.x > 0 || delta.y > 0) {
-            // increase the size of the shell
-            Shell shell = getShell();
-            Point shellSize = shell.getSize();
-            setShellSize(shellSize.x + delta.x, shellSize.y + delta.y);
-            constrainShellSize();
+        if (isAutoLayoutAvailable() &&
+            (!(page instanceof  ActiveWizardPage<?> awp) || awp.isAutoResizeEnabled())) {
+            UIUtils.asyncExec(() -> {
+                Point pageCompSize = page.getControl().computeSize(SWT.DEFAULT, SWT.DEFAULT);
+                for (Control parent = page.getControl().getParent(); parent != null; parent = parent.getParent()) {
+                    if (parent instanceof SashForm) {
+                        pageCompSize = parent.computeSize(SWT.DEFAULT, SWT.DEFAULT);
+                        break;
+                    }
+                }
+                Point shellCompSize = getShell().computeSize(SWT.DEFAULT, SWT.DEFAULT);
+                if (shellCompSize.y > pageCompSize.y) {
+                    pageCompSize.y = shellCompSize.y;
+                }
+                UIUtils.resizeShell(
+                    getShell(),
+                    pageCompSize);
+            });
         }
     }
 

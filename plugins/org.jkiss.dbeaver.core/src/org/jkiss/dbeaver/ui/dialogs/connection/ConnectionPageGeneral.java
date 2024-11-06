@@ -61,6 +61,7 @@ import org.jkiss.utils.CommonUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * General connection page (common for all connection types)
@@ -205,14 +206,17 @@ public class ConnectionPageGeneral extends ConnectionWizardPage implements Navig
         }
 
         long features = getWizard().getSelectedDriver().getDataSourceProvider().getFeatures();
+        boolean isFeatureCatalogOnlyNeedToApply = (features & DBPDataSourceProvider.FEATURE_CATALOGS_ONLY) != 0;
 
         for (FilterInfo filterInfo : filters) {
             if (DBSCatalog.class.isAssignableFrom(filterInfo.type)) {
-                enableFilter(filterInfo, (features & DBPDataSourceProvider.FEATURE_CATALOGS) != 0);
+                enableFilter(filterInfo,
+                    (features & DBPDataSourceProvider.FEATURE_CATALOGS) != 0 || isFeatureCatalogOnlyNeedToApply);
             } else if (DBSSchema.class.isAssignableFrom(filterInfo.type)) {
-                enableFilter(filterInfo, (features & DBPDataSourceProvider.FEATURE_SCHEMAS) != 0);
+                enableFilter(filterInfo,
+                    (features & DBPDataSourceProvider.FEATURE_SCHEMAS) != 0 && !isFeatureCatalogOnlyNeedToApply);
             } else {
-                enableFilter(filterInfo, true);
+                enableFilter(filterInfo, !isFeatureCatalogOnlyNeedToApply);
             }
         }
         filtersGroup.layout();
@@ -295,6 +299,7 @@ public class ConnectionPageGeneral extends ConnectionWizardPage implements Navig
             navigatorSettings = new DataSourceNavigatorSettings(getWizard().getSelectedNavigatorSettings());
         }
 
+        initializeDialogUnits(parent);
         Composite group = UIUtils.createComposite(parent, 1);
 
         {
@@ -639,7 +644,11 @@ public class ConnectionPageGeneral extends ConnectionWizardPage implements Navig
         }
 
         if (connectionTypeCombo.getSelectionIndex() >= 0) {
-            confConfig.setConnectionType(connectionTypeCombo.getSelectedItem());
+            DBPConnectionType newConnectionType = connectionTypeCombo.getSelectedItem();
+            if (!Objects.equals(newConnectionType, confConfig.getConnectionType())) {
+                // Changing connection types also changes defaults
+                confConfig.setConnectionType(newConnectionType);
+            }
         }
 
         DataSourceDescriptor dsDescriptor = (DataSourceDescriptor) dataSource;

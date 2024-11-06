@@ -120,12 +120,15 @@ public class ResultSetMessages extends NLS {
     public static String controls_resultset_viewer_hide_columns_error_title;
     public static String controls_resultset_viewer_hide_columnss_error_text;
     public static String controls_resultset_viewer_show_hidden_columns;
-    public static String controls_resultset_viewer_collection_size_text;
 
     public static String controls_resultset_ref_menu_no_references;
     public static String controls_resultset_ref_menu_references;
     public static String controls_resultset_ref_menu_no_associations;
     public static String controls_resultset_ref_menu_associations;
+
+    public static String controls_resultset_results_read_only;
+    public static String controls_resultset_results_read_only_status;
+    public static String controls_resultset_results_edit_key;
 
     public static String controls_rs_pump_job_context_name;
     public static String controls_rs_pump_job_name;
@@ -314,7 +317,7 @@ public class ResultSetMessages extends NLS {
     public static String dialog_save_script_button_delete_cascade_tip;
     public static String dialog_save_script_button_delete_deep_cascade;
     public static String dialog_save_script_button_delete_deep_cascade_tip;
-    public static String dialog_save_script_button_bar_button_persist;
+    public static String dialog_save_script_button_bar_button_execute;
     public static String dialog_save_script_button_bar_button_copy;
 
     //Preference/Properties
@@ -464,6 +467,7 @@ public class ResultSetMessages extends NLS {
     public static String copy_special_force_quote_cell_values_tip;
     public static String copy_special_copy_as_html_text;
     public static String copy_special_copy_as_html_tip;
+    public static String copy_special_hint_for_hotkey;
 
     public static String filter_panel_filters_history_text;
     public static String filter_panel_expand_panel_text;

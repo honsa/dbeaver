@@ -23,7 +23,6 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.ProgressMonitorDialog;
-import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.operation.ModalContext;
 import org.eclipse.swt.custom.BusyIndicator;
 import org.eclipse.swt.dnd.Clipboard;
@@ -35,13 +34,12 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.*;
-import org.eclipse.ui.services.IDisposable;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
+import org.jkiss.dbeaver.DBDatabaseException;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.DBeaverPreferences;
 import org.jkiss.dbeaver.Log;
-import org.jkiss.dbeaver.ModelPreferences;
 import org.jkiss.dbeaver.model.*;
 import org.jkiss.dbeaver.model.access.DBAPasswordChangeInfo;
 import org.jkiss.dbeaver.model.connection.DBPAuthInfo;
@@ -56,13 +54,13 @@ import org.jkiss.dbeaver.model.runtime.load.ILoadVisualizer;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
 import org.jkiss.dbeaver.runtime.DBeaverNotifications;
-import org.jkiss.dbeaver.runtime.ui.DBPPlatformUI;
+import org.jkiss.dbeaver.runtime.ui.console.ConsoleUserInterface;
 import org.jkiss.dbeaver.ui.*;
 import org.jkiss.dbeaver.ui.actions.datasource.DataSourceInvalidateHandler;
 import org.jkiss.dbeaver.ui.dialogs.*;
 import org.jkiss.dbeaver.ui.dialogs.connection.PasswordChangeDialog;
 import org.jkiss.dbeaver.ui.dialogs.driver.DriverDownloadDialog;
-import org.jkiss.dbeaver.ui.dialogs.driver.DriverEditDialog;
+import org.jkiss.dbeaver.ui.dialogs.driver.DriverEditHelpers;
 import org.jkiss.dbeaver.ui.dialogs.exec.ExecutionQueueErrorJob;
 import org.jkiss.dbeaver.ui.internal.UIConnectionMessages;
 import org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerObjectOpen;
@@ -76,7 +74,6 @@ import org.jkiss.utils.CommonUtils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -86,25 +83,19 @@ import java.util.stream.Collectors;
 /**
  * DBeaver UI core
  */
-public class DesktopUI implements DBPPlatformUI {
+public class DesktopUI extends ConsoleUserInterface {
 
     private static final Log log = Log.getLog(DesktopUI.class);
 
-    private static DesktopUI instance;
-
     private TrayIconHandler trayItem;
-    private final List<IDisposable> globalDisposables = new ArrayList<>();
     private WorkbenchContextListener contextListener;
 
     public static DesktopUI getInstance() {
-        if (instance == null) {
-            instance = new DesktopUI();
-            instance.initialize();
-        }
-        return instance;
+        return (DesktopUI) DBWorkbench.getPlatformUI();
     }
 
     static void disposeUI() {
+        DesktopUI instance = getInstance();
         if (instance != null) {
             try {
                 instance.dispose();
@@ -118,20 +109,10 @@ public class DesktopUI implements DBPPlatformUI {
         if (trayItem != null) {
             trayItem.hide();
         }
-
-        List<IDisposable> dispList = new ArrayList<>(globalDisposables);
-        Collections.reverse(dispList);
-        for (IDisposable disp : dispList) {
-            try {
-                disp.dispose();
-            } catch (Exception e) {
-                log.error(e);
-            }
-            globalDisposables.remove(disp);
-        }
     }
 
-    private void initialize() {
+    // This method is called during startup thru @ComponentReference in workbench
+    public void initialize() {
         this.trayItem = new TrayIconHandler();
 
         new AbstractJob("Workbench listener") {
@@ -201,6 +182,9 @@ public class DesktopUI implements DBPPlatformUI {
 
     @Override
     public UserResponse showError(@Nullable final String title, @Nullable final String message, @NotNull final IStatus status) {
+        if (isHeadlessMode()) {
+            return super.showError(title, message, status);
+        }
         IStatus rootStatus = status;
         for (IStatus s = status; s != null; ) {
             if (s.getException() instanceof DBException) {
@@ -237,22 +221,39 @@ public class DesktopUI implements DBPPlatformUI {
         return UserResponse.OK;
     }
 
+    private static boolean isHeadlessMode() {
+        return DBWorkbench.getPlatform().getApplication().isHeadlessMode();
+    }
+
     @Override
-    public UserResponse showError(@Nullable String title, @Nullable String message, @NotNull Throwable error) {
+    public UserResponse showError(@Nullable String title, @Nullable String message, Throwable error) {
+        if (error == null) {
+            return showError(title, message);
+        }
+        if (isHeadlessMode()) {
+            return super.showError(title, message, error);
+        }
         return showError(title, message, GeneralUtils.makeExceptionStatus(error));
     }
 
     @Override
     public UserResponse showError(@NotNull String title, @Nullable String message) {
+        if (isHeadlessMode()) {
+            return super.showError(title, message);
+        }
         return showError(title, null, new Status(IStatus.ERROR, DesktopPlatform.PLUGIN_ID, message));
     }
 
     @Override
     public void showMessageBox(@NotNull String title, String message, boolean error) {
-        if (error) {
-            showMessageBox(title, message, DBIcon.STATUS_ERROR);
+        if (isHeadlessMode()) {
+            super.showMessageBox(title, message, error);
         } else {
-            showMessageBox(title, message, DBIcon.STATUS_INFO);
+            if (error) {
+                showMessageBox(title, message, DBIcon.STATUS_ERROR);
+            } else {
+                showMessageBox(title, message, DBIcon.STATUS_INFO);
+            }
         }
     }
 
@@ -268,7 +269,11 @@ public class DesktopUI implements DBPPlatformUI {
 
     @Override
     public void showWarningMessageBox(@NotNull String title, String message) {
-        showMessageBox(title, message, DBIcon.STATUS_WARNING);
+        if (isHeadlessMode()) {
+            super.showWarningMessageBox(title, message);
+        } else {
+            showMessageBox(title, message, DBIcon.STATUS_WARNING);
+        }
     }
 
     @Override
@@ -295,16 +300,25 @@ public class DesktopUI implements DBPPlatformUI {
 
     @Override
     public boolean confirmAction(String title, String message) {
+        if (isHeadlessMode()) {
+            return super.confirmAction(title, message);
+        }
         return UIUtils.confirmAction(title, message);
     }
 
     @Override
     public boolean confirmAction(String title, String message, boolean isWarning) {
+        if (isHeadlessMode()) {
+            return super.confirmAction(title, message, isWarning);
+        }
         return UIUtils.confirmAction(null, title, message, isWarning ? DBIcon.STATUS_WARNING : DBIcon.STATUS_QUESTION);
     }
 
     @Override
     public boolean confirmAction(@NotNull String title, @NotNull String message, @NotNull String buttonLabel, boolean isWarning) {
+        if (isHeadlessMode()) {
+            return super.confirmAction(title, message, buttonLabel, isWarning);
+        }
         final Reply confirm = new Reply(buttonLabel);
         final Reply[] decision = new Reply[1];
 
@@ -331,6 +345,9 @@ public class DesktopUI implements DBPPlatformUI {
         @Nullable Integer previousChoice,
         int defaultChoice
     ) {
+        if (isHeadlessMode()) {
+            return super.showUserChoice(title, message, labels, forAllLabels, previousChoice, defaultChoice);
+        }
         final List<Reply> reply = labels.stream()
             .map(s -> CommonUtils.isEmpty(s) ? null : new Reply(s))
             .collect(Collectors.toList());
@@ -389,7 +406,7 @@ public class DesktopUI implements DBPPlatformUI {
 
     private static UserResponse showDatabaseError(String message, DBException error)
     {
-        DBPDataSource dataSource = error.getDataSource();
+        DBPDataSource dataSource = error instanceof DBDatabaseException dbe ? dbe.getDataSource() : null;
         DBPErrorAssistant.ErrorType errorType = dataSource == null ? DBPErrorAssistant.ErrorType.NORMAL : DBExecUtils.discoverErrorType(dataSource, error);
         switch (errorType) {
             case CONNECTION_LOST:
@@ -400,7 +417,7 @@ public class DesktopUI implements DBPPlatformUI {
                 DataSourceInvalidateHandler.showConnectionLostDialog(null, message, error);
                 return UserResponse.OK;
             case DRIVER_CLASS_MISSING:
-                DriverEditDialog.showBadConfigDialog(null, message, error);
+                DriverEditHelpers.showBadConfigDialog(null, message, error);
                 return UserResponse.OK;
         }
 
@@ -567,7 +584,7 @@ public class DesktopUI implements DBPPlatformUI {
     @Override
     public void executeWithProgress(@NotNull DBRRunnableWithProgress runnable) throws InvocationTargetException, InterruptedException {
         // FIXME: we need to run with progress service bu we can't change active control focus
-        // Otherwise it breaks soem functions (e.g. data editor value save as it handles focus events).
+        // Otherwise it breaks some functions (e.g. data editor value save as it handles focus events).
         // so we can use runInProgressServie function
         runnable.run(new VoidProgressMonitor());
     }
@@ -651,13 +668,10 @@ public class DesktopUI implements DBPPlatformUI {
                             }  
                         };
                         
-                        progress.run(true, runnable != null, new IRunnableWithProgress() {
-                            @Override
-                            public void run(IProgressMonitor monitor) throws InterruptedException {
-                                monitor.beginTask(operationDescription, IProgressMonitor.UNKNOWN);
-                                job.join();
-                                monitor.done();
-                            }
+                        progress.run(true, runnable != null, monitor -> {
+                            monitor.beginTask(operationDescription, IProgressMonitor.UNKNOWN);
+                            job.join();
+                            monitor.done();
                         });
                     }
                 } catch (Exception ex) {

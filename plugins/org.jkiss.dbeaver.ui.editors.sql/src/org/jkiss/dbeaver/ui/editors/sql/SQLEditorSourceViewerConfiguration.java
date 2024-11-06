@@ -37,7 +37,6 @@ import org.eclipse.jface.text.rules.Token;
 import org.eclipse.jface.text.source.IAnnotationHover;
 import org.eclipse.jface.text.source.ISourceViewer;
 import org.eclipse.swt.graphics.Color;
-import org.eclipse.swt.graphics.RGB;
 import org.eclipse.ui.editors.text.TextSourceViewerConfiguration;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
@@ -311,11 +310,16 @@ public class SQLEditorSourceViewerConfiguration extends TextSourceViewerConfigur
         // Add a "damager-repairer" for changes within one-line SQL comments.
         addContentTypeDamageRepairer(reconciler, SQLParserPartitions.CONTENT_TYPE_SQL_COMMENT, SQLConstants.CONFIG_COLOR_COMMENT);
         SQLEditorBase sqlEditor = this.getSQLEditor();
-        if (sqlEditor.isAdvancedHighlightingEnabled() && SQLEditorUtils.isSQLSyntaxParserApplied(sqlEditor.getEditorInput())) {
+        if (SQLEditorUtils.isSQLSyntaxParserApplied(sqlEditor.getEditorInput())) {
             // Add a "damager-repairer" for changes within string literals.
             addContentTypeDamageRepairer(reconciler, SQLParserPartitions.CONTENT_TYPE_SQL_STRING);
-            // Add a "damager-repairer" for changes within quoted literals.
-            addContentTypeDamageRepairer(reconciler, SQLParserPartitions.CONTENT_TYPE_SQL_QUOTED);
+            if (sqlEditor.isAdvancedHighlightingEnabled()) {
+                // Add a "damager-repairer" for changes within quoted literals.
+                addContentTypeDamageRepairer(reconciler, SQLParserPartitions.CONTENT_TYPE_SQL_QUOTED);
+            } else {
+                // Add a "damager-repairer" for changes within quoted literals.
+                addContentTypeDamageRepairer(reconciler, SQLParserPartitions.CONTENT_TYPE_SQL_QUOTED, SQLConstants.CONFIG_COLOR_DATATYPE);
+            }
         } else {
             // Add a "damager-repairer" for changes within string literals.
             addContentTypeDamageRepairer(reconciler, SQLParserPartitions.CONTENT_TYPE_SQL_STRING, SQLConstants.CONFIG_COLOR_STRING);
@@ -405,7 +409,7 @@ public class SQLEditorSourceViewerConfiguration extends TextSourceViewerConfigur
 
     @Override
     public IHyperlinkPresenter getHyperlinkPresenter(ISourceViewer sourceViewer) {
-        return new MultipleHyperlinkPresenter(new RGB(0, 0, 255)) {
+        return new MultipleHyperlinkPresenter(editor.getViewerConfiguration().getPreferenceStore()) {
 
         };
     }

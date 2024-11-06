@@ -17,6 +17,7 @@
 package org.jkiss.dbeaver.ext.altibase.model.session;
 
 import org.jkiss.code.NotNull;
+import org.jkiss.dbeaver.DBDatabaseException;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.altibase.model.AltibaseDataSource;
 import org.jkiss.dbeaver.model.DBPDataSource;
@@ -64,24 +65,30 @@ public class AltibaseServerSessionManager implements DBAServerSessionManager<Alt
                 }
             }
         } catch (SQLException e) {
-            throw new DBException(e, session.getDataSource());
+            throw new DBDatabaseException(e, session.getDataSource());
         }
     }
 
     @Override
-    public void alterSession(@NotNull DBCSession session, @NotNull AltibaseServerSession sessionType, @NotNull Map<String, Object> options) throws DBException {
+    public void alterSession(@NotNull DBCSession session, @NotNull String sessionId, @NotNull Map<String, Object> options) throws DBException {
         try {
 
             String sql = String.format("ALTER DATABASE %s SESSION CLOSE %s",
                     dataSource.getDbName((JDBCSession) session), 
-                    sessionType.getSessionId());
+                    sessionId);
             
             try (JDBCPreparedStatement dbStat = ((JDBCSession) session).prepareStatement(sql)) {
                 dbStat.execute();
             }
         } catch (SQLException e) {
-            throw new DBException(e, session.getDataSource());
+            throw new DBDatabaseException(e, session.getDataSource());
         }
+    }
+
+    @NotNull
+    @Override
+    public Map<String, Object> getTerminateOptions() {
+        return Map.of();
     }
 
     @Override

@@ -79,12 +79,20 @@ public class DataSourceHandler {
             Job[] connectJobs = Job.getJobManager().find(dataSource);
             if (!ArrayUtils.isEmpty(connectJobs)) {
                 // Already connecting/disconnecting - just return
+                IStatus lastResult = null;
                 if (monitor != null && connectJobs.length == 1) {
                     try {
                         connectJobs[0].join(0, monitor.getNestedMonitor());
+                        lastResult = connectJobs[0].getResult();
                     } catch (InterruptedException e) {
                         log.debug(e);
                     }
+                }
+                if (onFinish != null) {
+                    if (lastResult == null) {
+                        lastResult = dataSourceContainer.isConnected() ? Status.OK_STATUS : Status.CANCEL_STATUS;
+                    }
+                    onFinish.onTaskFinished(lastResult);
                 }
                 return;
             }
@@ -109,6 +117,7 @@ public class DataSourceHandler {
                     }
                 }
             };
+
             if (monitor != null) {
                 connectJob.runSync(monitor);
                 jobChangeAdapter.done(new IJobChangeEvent() {
@@ -188,6 +197,10 @@ public class DataSourceHandler {
     }
 
     public static boolean checkAndCloseActiveTransaction(DBPDataSourceContainer container, boolean isReconnect) {
+        return checkAndCloseActiveTransaction(container, isReconnect, false);
+    }
+
+    public static boolean checkAndCloseActiveTransaction(DBPDataSourceContainer container, boolean isReconnect, boolean forceRollback) {
         try {
             DBPDataSource dataSource = container.getDataSource();
             if (dataSource == null) {
@@ -195,7 +208,7 @@ public class DataSourceHandler {
             }
 
             for (DBSInstance instance : dataSource.getAvailableInstances()) {
-                if (!checkAndCloseActiveTransaction(instance.getAllContexts(), isReconnect)) {
+                if (!checkAndCloseActiveTransaction(instance.getAllContexts(), isReconnect, forceRollback)) {
                     return false;
                 }
             }
@@ -206,6 +219,10 @@ public class DataSourceHandler {
     }
 
     public static boolean checkAndCloseActiveTransaction(DBCExecutionContext[] contexts, boolean isReconnect) {
+        return checkAndCloseActiveTransaction(contexts, isReconnect, false);
+    }
+
+    public static boolean checkAndCloseActiveTransaction(DBCExecutionContext[] contexts, boolean isReconnect, boolean forceRollback) {
         if (contexts == null) {
             return true;
         }
@@ -215,7 +232,7 @@ public class DataSourceHandler {
             // First rollback active transaction
             try {
                 if (QMUtils.isTransactionActive(context)) {
-                    if (commitTxn == null) {
+                    if (!forceRollback && commitTxn == null) {
                         // Ask for confirmation
                         TransactionCloseConfirmer closeConfirmer = new TransactionCloseConfirmer(
                             context.getDataSource().getContainer().getName() + " (" + context.getContextName() + ")",
@@ -223,17 +240,14 @@ public class DataSourceHandler {
                         );
                         UIUtils.syncExec(closeConfirmer);
                         switch (closeConfirmer.result) {
-                            case IDialogConstants.YES_ID:
-                                commitTxn = true;
-                                break;
-                            case IDialogConstants.NO_ID:
-                                commitTxn = false;
-                                break;
-                            default:
+                            case IDialogConstants.YES_ID -> commitTxn = true;
+                            case IDialogConstants.NO_ID -> commitTxn = false;
+                            default -> {
                                 return false;
+                            }
                         }
                     }
-                    final boolean commit = commitTxn;
+                    final boolean commit = !forceRollback && commitTxn;
                     UIUtils.runInProgressService(monitor -> closeActiveTransaction(monitor, context, commit));
                 }
             } catch (Throwable e) {
